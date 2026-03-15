@@ -2,7 +2,6 @@ import WebSocket, { WebSocketServer } from "ws";
 import admin from "./firebase_admin";
 import { v4 as uuidv4 } from 'uuid';
 
-
 const port = 3030;
 const API_KEY = process.env.OPENAI_API_KEY ?? null;
 
