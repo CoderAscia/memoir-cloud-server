@@ -18,12 +18,12 @@ jobs:
 
       - name: Build the Docker image
         run: |
-          docker build . --file Dockerfile --tag jlb027/memoir-server:latest --tag jlb027/memoir-server:${{ github.sha }}
+          docker build . --file Dockerfile --tag jlb027/memoir-webSocket-server:latest --tag jlb027/memoir-webSocket-server:${{ github.sha }}
 
       - name: Push the Docker image
         run: |
-          docker push jlb027/memoir-server:latest
-          docker push jlb027/memoir-server:${{ github.sha }}
+          docker push jlb027/memoir-webSocket-server:latest
+          docker push jlb027/memoir-webSocket-server:${{ github.sha }}
       
 
   deploy:
