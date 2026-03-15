@@ -10,7 +10,7 @@ services:
 
   memoir_server:
     build: .
-    image: jlb027/memoir-webSocket-server:${IMAGE_TAG:-latest}
+    image: jlb027/memoir-websocket-server:${IMAGE_TAG:-latest}
 
     environment:
       - SECRET_KEY=${SECRET_KEY}
