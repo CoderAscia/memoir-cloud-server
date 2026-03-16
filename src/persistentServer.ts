@@ -12,7 +12,7 @@ if (API_KEY == null) throw new Error("API Key cannot be null");
 wss.on("connection", async (socket: WebSocket, req) => {
 
   const url = req.url ?? "";
-  const params = new URLSearchParams(url.replace("/?", ""));
+  const params = new URLSearchParams(url.split('?')[1]);
   const token = params.get("token");
 
   let decodedToken: admin.auth.DecodedIdToken;
