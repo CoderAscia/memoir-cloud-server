@@ -162,6 +162,11 @@ wss.on("connection", async (socket, req) => {
                     characterMetaData: parsedMessage.characterMetaData
                 };
                 await dbCharacters.create(newCharDoc);
+                // Update local memory and Redis cache to prevent stale data
+                if (userData && Array.isArray(userData.characters)) {
+                    userData.characters.push(newCharDoc);
+                    await redisClient.setSession(userId, userData, 3600);
+                }
                 socket.send(JSON.stringify({
                     type: "createCharacterResponse",
                     status: "success",
