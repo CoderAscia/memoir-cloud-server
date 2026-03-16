@@ -30,17 +30,27 @@ wss.on("connection", async (socket, req) => {
     const token = fullUrl.searchParams.get("token");
     let userData = null;
     console.log(`WebSocket: Connection request for ${fullUrl.pathname}${fullUrl.search ? ' with token' : ' without token'}`);
-    let decodedToken;
-    try {
-        decodedToken = await firebase_admin_1.default.auth().verifyIdToken(token ?? "") || token == "test_token";
+    let userId;
+    // --- TEST BACKDOOR ---
+    // Allow a specific token string for Postman testing
+    if (token === "test_token") {
+        console.log("⚠️ WARNING: Test Backdoor Accessed ⚠️");
+        userId = "test_user_id";
     }
-    catch (err) {
-        console.log("Invalid Firebase token :" + token);
-        console.error("Invalid Firebase token:", err.message);
-        socket.close();
-        return;
+    else {
+        // Normal Production Flow
+        let decodedToken;
+        try {
+            decodedToken = await firebase_admin_1.default.auth().verifyIdToken(token ?? "");
+            userId = decodedToken.uid;
+        }
+        catch (err) {
+            console.log("Invalid Firebase token :" + token);
+            console.error("Invalid Firebase token:", err.message);
+            socket.close();
+            return;
+        }
     }
-    const userId = decodedToken.uid;
     console.log("Authenticated user UID:", userId);
     socket.on("close", async () => {
         console.log(`WebSocket connection closed for user ${userId}`);
@@ -129,10 +139,25 @@ wss.on("connection", async (socket, req) => {
                 console.log(`Sent ${messages.length} messages for conversation ${conversationId}`);
             }
             else if (parsedMessage.type == "createCharacter") {
+                const characterName = parsedMessage.characterName?.trim();
+                // Check if character already exists for this user
+                const existingCharacter = await dbCharacters.findOne({
+                    uid: userId,
+                    characterName: characterName
+                });
+                if (existingCharacter) {
+                    socket.send(JSON.stringify({
+                        type: "createCharacterResponse",
+                        status: "error",
+                        message: `A character named '${characterName}' already exists.`
+                    }));
+                    console.log(`Character creation failed: '${characterName}' already exists for user ${userId}`);
+                    return;
+                }
                 const newCharDoc = {
                     characterId: (0, uuid_1.v4)(),
                     uid: userId,
-                    characterName: parsedMessage.characterName,
+                    characterName: characterName,
                     characterImagePath: parsedMessage.characterImagePath,
                     characterMetaData: parsedMessage.characterMetaData
                 };
@@ -142,7 +167,7 @@ wss.on("connection", async (socket, req) => {
                     status: "success",
                     data: newCharDoc
                 }));
-                console.log("Created new character");
+                console.log(`Created new character: ${characterName}`);
             }
             else if (parsedMessage.type == "createConversation") {
                 const newConvDoc = {
