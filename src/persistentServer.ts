@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Database from "./database";
 import DBHandler from "./dbHandler";
 import RedisClient from "./redisClient";
+import aiService from "./aiService";
 import { UserDocument, CharacterDocument, CharacterMetaData, MemoryDocument, ConversationDocument, MessageDocument } from "./interface_types";
 
 const port = 3030;
@@ -123,9 +124,15 @@ wss.on("connection", async (socket: WebSocket, req) => {
       } else if (parsedMessage.type == "getCharacterDetails") {
         const { characterId } = parsedMessage;
 
-        // Fetch conversations and memories for this character
-        const conversations = await dbConversations.find({ characterId });
-        const memories = await dbMemories.find({ characterId });
+        // Fetch conversations and memories, sorted by newest first
+        const conversations = await dbConversations.find(
+          { characterId }, 
+          { sort: { timestamp: -1 } }
+        );
+        const memories = await dbMemories.find(
+          { characterId },
+          { sort: { timestamp: -1 } }
+        );
 
         socket.send(JSON.stringify({
           type: "characterDetailsResponse",
@@ -142,7 +149,23 @@ wss.on("connection", async (socket: WebSocket, req) => {
 
         // Build filter for pagination
         let filter: any = { conversationId };
-        if (lastMessageTimestamp) {
+        
+        // Only use cache if no pagination timestamp is provided (getting initial load)
+        if (!lastMessageTimestamp) {
+          const cachedMessages = await redisClient.getConversationCache(conversationId);
+          if (cachedMessages) {
+            socket.send(JSON.stringify({
+              type: "messagesResponse",
+              conversationId,
+              data: cachedMessages
+            }));
+            console.log(`Sent ${cachedMessages.length} messages for conversation ${conversationId} (Loaded from Redis Cache)`);
+            
+            // Refresh TTL
+            await redisClient.expireSession(`conv:${conversationId}`, 3600);
+            return;
+          }
+        } else {
           filter.timestamp = { $lt: lastMessageTimestamp };
         }
 
@@ -151,6 +174,12 @@ wss.on("connection", async (socket: WebSocket, req) => {
           sort: { timestamp: -1 },
           limit: limit
         });
+
+        // Cache the initial load
+        if (!lastMessageTimestamp) {
+          await redisClient.setConversationCache(conversationId, messages, 3600);
+          console.log(`Saved ${messages.length} messages for conversation ${conversationId} to Redis Cache`);
+        }
 
         socket.send(JSON.stringify({
           type: "messagesResponse",
@@ -200,6 +229,88 @@ wss.on("connection", async (socket: WebSocket, req) => {
         }));
         console.log(`Created new character: ${characterName}`);
 
+      } else if (parsedMessage.type == "updateCharacter") {
+        const { characterId, characterName, characterImagePath, characterMetaData } = parsedMessage;
+
+        // 1. Verify character belongs to user
+        const existingCharacter = await dbCharacters.findOne({ characterId, uid: userId });
+        if (!existingCharacter) {
+          socket.send(JSON.stringify({
+            type: "updateCharacterResponse",
+            status: "error",
+            message: "Character not found or access denied."
+          }));
+          return;
+        }
+
+        // 2. Prevent duplicate names if name is changing
+        if (characterName && characterName.trim() !== existingCharacter.characterName) {
+          const duplicate = await dbCharacters.findOne({ uid: userId, characterName: characterName.trim() });
+          if (duplicate) {
+            socket.send(JSON.stringify({
+              type: "updateCharacterResponse",
+              status: "error",
+              message: `A character named '${characterName.trim()}' already exists.`
+            }));
+            return;
+          }
+        }
+
+        // 3. Build update payload
+        const updateData: any = {};
+        if (characterName) updateData.characterName = characterName.trim();
+        if (characterImagePath !== undefined) updateData.characterImagePath = characterImagePath;
+        if (characterMetaData !== undefined) updateData.characterMetaData = characterMetaData;
+
+        await dbCharacters.update({ characterId }, { $set: updateData });
+
+        // 4. Update local memory array and Redis Cache
+        if (userData && Array.isArray(userData.characters)) {
+          const charIndex = userData.characters.findIndex((c: any) => c.characterId === characterId);
+          if (charIndex !== -1) {
+            userData.characters[charIndex] = { ...userData.characters[charIndex], ...updateData };
+            await redisClient.setSession(userId, userData, 3600);
+          }
+        }
+
+        socket.send(JSON.stringify({
+          type: "updateCharacterResponse",
+          status: "success",
+          characterId,
+          updatedFields: updateData
+        }));
+        console.log(`Updated character: ${characterId}`);
+
+      } else if (parsedMessage.type == "deleteCharacter") {
+        const { characterId } = parsedMessage;
+
+        // 1. Verify character belongs to user
+        const existingCharacter = await dbCharacters.findOne({ characterId, uid: userId });
+        if (!existingCharacter) {
+          socket.send(JSON.stringify({
+            type: "deleteCharacterResponse",
+            status: "error",
+            message: "Character not found or access denied."
+          }));
+          return;
+        }
+
+        // 2. Delete character
+        await dbCharacters.delete({ characterId });
+
+        // 3. Update local memory array and Redis cache
+        if (userData && Array.isArray(userData.characters)) {
+          userData.characters = userData.characters.filter((c: any) => c.characterId !== characterId);
+          await redisClient.setSession(userId, userData, 3600);
+        }
+
+        socket.send(JSON.stringify({
+          type: "deleteCharacterResponse",
+          status: "success",
+          characterId
+        }));
+        console.log(`Deleted character: ${characterId}`);
+
       } else if (parsedMessage.type == "createConversation") {
         const newConvDoc: ConversationDocument = {
           conversationId: uuidv4(),
@@ -234,10 +345,71 @@ wss.on("connection", async (socket: WebSocket, req) => {
         }));
         console.log("Created new memory");
 
+      } else if (parsedMessage.type == "updateMemory") {
+        const { memoryId, characterId, memoryTitle, memoryContent, memorySplashArts } = parsedMessage;
+
+        // 1. Verify character belongs to user
+        const existingCharacter = await dbCharacters.findOne({ characterId, uid: userId });
+        if (!existingCharacter) {
+          socket.send(JSON.stringify({
+            type: "updateMemoryResponse",
+            status: "error",
+            message: "Character not found or access denied."
+          }));
+          return;
+        }
+
+        // 2. Build update payload
+        const updateData: any = {};
+        if (memoryTitle !== undefined) updateData.memoryTitle = memoryTitle;
+        if (memoryContent !== undefined) updateData.memoryContent = memoryContent;
+        if (memorySplashArts !== undefined) updateData.memorySplashArts = memorySplashArts;
+
+        await dbMemories.update({ memoryId, characterId }, { $set: updateData });
+
+        socket.send(JSON.stringify({
+          type: "updateMemoryResponse",
+          status: "success",
+          memoryId,
+          updatedFields: updateData
+        }));
+        console.log(`Updated memory: ${memoryId}`);
+
+      } else if (parsedMessage.type == "deleteMemory") {
+        const { memoryId, characterId } = parsedMessage;
+
+        // 1. Verify character belongs to user
+        const existingCharacter = await dbCharacters.findOne({ characterId, uid: userId });
+        if (!existingCharacter) {
+          socket.send(JSON.stringify({
+            type: "deleteMemoryResponse",
+            status: "error",
+            message: "Character not found or access denied."
+          }));
+          return;
+        }
+
+        // 2. Delete memory
+        await dbMemories.delete({ memoryId, characterId });
+
+        socket.send(JSON.stringify({
+          type: "deleteMemoryResponse",
+          status: "success",
+          memoryId
+        }));
+        console.log(`Deleted memory: ${memoryId}`);
+
       } else if (parsedMessage.type == "chat") {
         const { conversationId, message } = parsedMessage;
 
-        // Save User Message
+        // 1. Fetch Conversation to get characterId
+        const conversationDoc = await dbConversations.findOne({ conversationId });
+        if (!conversationDoc) {
+          socket.send(JSON.stringify({ type: "error", message: "Conversation not found." }));
+          return;
+        }
+
+        // 2. Save User Message
         const userMessageDoc: MessageDocument = {
           messageId: uuidv4(),
           conversationId: conversationId,
@@ -247,11 +419,12 @@ wss.on("connection", async (socket: WebSocket, req) => {
           sender: "user"
         };
         await dbMessages.create(userMessageDoc as any);
+        await redisClient.appendMessageToCache(conversationId, userMessageDoc, 3600);
 
-        // Generate AI Reply (Placeholder for actual OpenAI call)
-        const aiReplyContent = `I received your message: ${message}`;
+        // 3. Generate AI Reply using AIService
+        const aiReplyContent = await aiService.generateReply(conversationDoc.characterId, conversationId);
 
-        // Save AI Message
+        // 4. Save AI Message
         const aiMessageDoc: MessageDocument = {
           messageId: uuidv4(),
           conversationId: conversationId,
@@ -261,15 +434,22 @@ wss.on("connection", async (socket: WebSocket, req) => {
           sender: "ai"
         };
         await dbMessages.create(aiMessageDoc as any);
+        await redisClient.appendMessageToCache(conversationId, aiMessageDoc, 3600);
 
-        // Send response back
+        // 5. Bump Conversation Timestamp
+        await dbConversations.update(
+          { conversationId },
+          { $set: { timestamp: aiMessageDoc.timestamp } }
+        );
+
+        // 5. Send response back
         socket.send(JSON.stringify({
           'type': "chat",
           "message_id": aiMessageDoc.messageId,
           "reply": aiReplyContent,
           "timestamp": aiMessageDoc.timestamp.toString(),
         }));
-        console.log("Sent and saved chat response");
+        console.log(`Sent and saved AI response for conversation ${conversationId}`);
       }
 
     });

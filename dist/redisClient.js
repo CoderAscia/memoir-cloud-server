@@ -57,6 +57,38 @@ class RedisClient {
     async deleteSession(key) {
         await this.client.del(key);
     }
+    // --- CONVERSATION CACHING ---
+    /**
+     * Caches an array of messages for a specific conversation
+     */
+    async setConversationCache(conversationId, messages, ttlSeconds = 3600) {
+        const key = `conv:${conversationId}`;
+        await this.client.set(key, JSON.stringify(messages), 'EX', ttlSeconds);
+    }
+    /**
+     * Retrieves cached messages for a conversation
+     */
+    async getConversationCache(conversationId) {
+        const key = `conv:${conversationId}`;
+        const data = await this.client.get(key);
+        return data ? JSON.parse(data) : null;
+    }
+    /**
+     * Appends a single new message to an existing conversation cache, bypassing full re-save if possible.
+     */
+    async appendMessageToCache(conversationId, message, ttlSeconds = 3600) {
+        const key = `conv:${conversationId}`;
+        const currentCache = await this.getConversationCache(conversationId);
+        if (currentCache) {
+            // Unshift because we sort descending (newest first)
+            currentCache.unshift(message);
+            await this.setConversationCache(conversationId, currentCache, ttlSeconds);
+        }
+        else {
+            // If cache expired or doesn't exist, we just start a new array
+            await this.setConversationCache(conversationId, [message], ttlSeconds);
+        }
+    }
     async close() {
         await this.client.quit();
     }
