@@ -4,6 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const ws_1 = require("ws");
+const express_1 = __importDefault(require("express"));
+const path_1 = __importDefault(require("path"));
 const firebase_admin_1 = __importDefault(require("./firebase_admin"));
 const uuid_1 = require("uuid");
 const database_1 = __importDefault(require("./database"));
@@ -24,6 +26,13 @@ const dbMessages = new dbHandler_1.default("messages");
 const dbMemories = new dbHandler_1.default("memories");
 const redisClient = redisClient_1.default.getInstance();
 const wss = new ws_1.WebSocketServer({ port: port, host: "0.0.0.0" });
+// Setup Express mapping strictly for the Admin Dashboard
+const app = (0, express_1.default)();
+const dashboardPort = 3031;
+app.use(express_1.default.static(path_1.default.join(__dirname, '../public')));
+app.listen(dashboardPort, '0.0.0.0', () => {
+    console.log(`Admin Dashboard running on http://localhost:${dashboardPort}`);
+});
 if (API_KEY == null)
     throw new Error("API Key cannot be null");
 wss.on("connection", async (socket, req) => {
@@ -62,7 +71,8 @@ wss.on("connection", async (socket, req) => {
         console.error("WebSocket error:", error);
     });
     // 1. Try to get session from Redis
-    let cachedSession = await redisClient.getSession(userId);
+    // let cachedSession = await redisClient.getSession(userId);
+    let cachedSession = null;
     if (cachedSession) {
         console.log(`Loaded user ${userId} from Redis (Cache)`);
         userData = cachedSession;
@@ -73,7 +83,21 @@ wss.on("connection", async (socket, req) => {
         if (!userDoc) {
             const newUserDoc = {
                 uid: userId,
-                timestampVersion: "prototype"
+                timestampVersion: "prototype",
+                characters: [
+                    {
+                        characterId: (0, uuid_1.v4)(),
+                        characterName: "Yuuki",
+                        characterImagePath: "assets/images/purple_kawaii.jpg",
+                        characterMetaData: {
+                            characterStickers: [],
+                            chatBackgroundImage: "",
+                            relationship: "Friend",
+                            characterPersonality: "Helpful and wise",
+                            characterBackstory: "Yuuki is a kind and caring friend who is always there to support you. She is a great listener and always knows the right thing to say."
+                        }
+                    }
+                ]
             };
             await dbUsers.create(newUserDoc);
             userDoc = newUserDoc;
