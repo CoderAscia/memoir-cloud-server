@@ -81,7 +81,8 @@ wss.on("connection", async (socket: WebSocket, req) => {
 
 
   // 1. Try to get session from Redis
-  let cachedSession = await redisClient.getSession(userId);
+  // let cachedSession = await redisClient.getSession(userId);
+  let cachedSession = null;
 
   if (cachedSession) {
     console.log(`Loaded user ${userId} from Redis (Cache)`);
@@ -104,7 +105,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
               chatBackgroundImage: "",
               relationship: "Friend",
               characterPersonality: "Helpful and wise",
-              characterBackstory: "An old wizard from the mountains."
+              characterBackstory: "Yuuki is a kind and caring friend who is always there to support you. She is a great listener and always knows the right thing to say."
             }
           }
         ]
