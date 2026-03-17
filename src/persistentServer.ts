@@ -1,4 +1,6 @@
 import WebSocket, { WebSocketServer } from "ws";
+import express from "express";
+import path from "path";
 import admin from "./firebase_admin";
 import { v4 as uuidv4 } from 'uuid';
 import Database from "./database";
@@ -25,6 +27,14 @@ const dbMemories = new DBHandler<MemoryDocument>("memories");
 const redisClient = RedisClient.getInstance();
 
 const wss = new WebSocketServer({ port: port, host: "0.0.0.0" });
+
+// Setup Express mapping strictly for the Admin Dashboard
+const app = express();
+const dashboardPort = 3031;
+app.use(express.static(path.join(__dirname, '../public')));
+app.listen(dashboardPort, '0.0.0.0', () => {
+  console.log(`Admin Dashboard running on http://localhost:${dashboardPort}`);
+});
 
 if (API_KEY == null) throw new Error("API Key cannot be null");
 
@@ -83,7 +93,21 @@ wss.on("connection", async (socket: WebSocket, req) => {
     if (!userDoc) {
       const newUserDoc = {
         uid: userId,
-        timestampVersion: "prototype"
+        timestampVersion: "prototype",
+        characters: [
+          {
+            characterId: uuidv4(),
+            characterName: "Yuuki",
+            characterImagePath: "assets/images/purple_kawaii.jpg",
+            characterMetaData: {
+              characterStickers: [],
+              chatBackgroundImage: "",
+              relationship: "Friend",
+              characterPersonality: "Helpful and wise",
+              characterBackstory: "An old wizard from the mountains."
+            }
+          }
+        ]
       } as any;
       await dbUsers.create(newUserDoc);
       userDoc = newUserDoc;
@@ -126,7 +150,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
 
         // Fetch conversations and memories, sorted by newest first
         const conversations = await dbConversations.find(
-          { characterId }, 
+          { characterId },
           { sort: { timestamp: -1 } }
         );
         const memories = await dbMemories.find(
@@ -149,7 +173,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
 
         // Build filter for pagination
         let filter: any = { conversationId };
-        
+
         // Only use cache if no pagination timestamp is provided (getting initial load)
         if (!lastMessageTimestamp) {
           const cachedMessages = await redisClient.getConversationCache(conversationId);
@@ -160,7 +184,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
               data: cachedMessages
             }));
             console.log(`Sent ${cachedMessages.length} messages for conversation ${conversationId} (Loaded from Redis Cache)`);
-            
+
             // Refresh TTL
             await redisClient.expireSession(`conv:${conversationId}`, 3600);
             return;
@@ -192,9 +216,9 @@ wss.on("connection", async (socket: WebSocket, req) => {
         const characterName = parsedMessage.characterName?.trim();
 
         // Check if character already exists for this user
-        const existingCharacter = await dbCharacters.findOne({ 
-          uid: userId, 
-          characterName: characterName 
+        const existingCharacter = await dbCharacters.findOne({
+          uid: userId,
+          characterName: characterName
         });
 
         if (existingCharacter) {

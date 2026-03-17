@@ -6,8 +6,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts",
+    "start": "node dist/persistentServer.js",
+    "dev": "ts-node src/persistentServer.ts",
     "test": "ts-node scripts/test.ts"
   },
   "keywords": [],
