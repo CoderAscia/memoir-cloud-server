@@ -102,6 +102,14 @@ class RedisClient {
         }
     }
 
+    /**
+     * Clears all data from the CURRENT database.
+     */
+    public async flushAll(): Promise<void> {
+        console.log("🧹 Clearing Redis cache...");
+        await this.client.flushdb();
+    }
+
     public async close(): Promise<void> {
         await this.client.quit();
     }
