@@ -14,6 +14,7 @@ class Database {
         }
         this.client = new mongodb_1.MongoClient(uri);
         this.dbName = uri.split('/').pop()?.split('?')[0] || 'memoir_db';
+        console.log(`MongoDB: Resolved database name as '${this.dbName}'`);
     }
     static async getInstance() {
         if (!Database.instance) {

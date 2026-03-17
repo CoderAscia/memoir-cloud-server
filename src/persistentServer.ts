@@ -96,7 +96,9 @@ wss.on("connection", async (socket: WebSocket, req) => {
     userData = cachedSession;
   } else {
     console.log(`Loading user ${userId} from MongoDB`);
+    console.log(`Querying collection 'users' with filter:`, { uid: userId });
     let userDoc = await dbUsers.findOne({ uid: userId });
+    console.log(`User document found:`, userDoc);
 
     if (!userDoc) {
       const newUserDoc = {

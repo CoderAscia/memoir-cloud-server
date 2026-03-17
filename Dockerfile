@@ -21,5 +21,5 @@ EXPOSE 3030
 EXPOSE 3000
 EXPOSE 3001
 
-# CMD ["node", "dist/persistentServer.js"]
-CMD [ "npx", "ts-node", "src/persistentServer.ts" ]
+CMD ["node", "dist/persistentServer.js"]
+# CMD [ "npx", "ts-node", "src/persistentServer.ts" ]

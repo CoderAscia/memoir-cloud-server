@@ -89,6 +89,13 @@ class RedisClient {
             await this.setConversationCache(conversationId, [message], ttlSeconds);
         }
     }
+    /**
+     * Clears all data from the CURRENT database.
+     */
+    async flushAll() {
+        console.log("🧹 Clearing Redis cache...");
+        await this.client.flushdb();
+    }
     async close() {
         await this.client.quit();
     }

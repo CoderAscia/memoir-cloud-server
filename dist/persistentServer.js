@@ -25,6 +25,12 @@ const dbConversations = new dbHandler_1.default("conversations");
 const dbMessages = new dbHandler_1.default("messages");
 const dbMemories = new dbHandler_1.default("memories");
 const redisClient = redisClient_1.default.getInstance();
+// Clear Redis cache on server restart
+redisClient.flushAll().then(() => {
+    console.log("Redis cache cleared on startup.");
+}).catch(err => {
+    console.error("Failed to clear Redis cache:", err);
+});
 const wss = new ws_1.WebSocketServer({ port: port, host: "0.0.0.0" });
 // Setup Express mapping strictly for the Admin Dashboard
 const app = (0, express_1.default)();
@@ -39,6 +45,7 @@ wss.on("connection", async (socket, req) => {
     const fullUrl = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
     const token = fullUrl.searchParams.get("token");
     let userData = null;
+    const TTL = 180;
     console.log(`WebSocket: Connection request for ${fullUrl.pathname}${fullUrl.search ? ' with token' : ' without token'}`);
     let userId;
     // --- TEST BACKDOOR ---
@@ -65,7 +72,7 @@ wss.on("connection", async (socket, req) => {
     socket.on("close", async () => {
         console.log(`WebSocket connection closed for user ${userId}`);
         // Keep session alive for 10 minutes (600 seconds) after disconnect
-        await redisClient.expireSession(userId, 600);
+        await redisClient.expireSession(userId, TTL);
     });
     socket.on("error", async (error) => {
         console.error("WebSocket error:", error);
@@ -79,7 +86,9 @@ wss.on("connection", async (socket, req) => {
     }
     else {
         console.log(`Loading user ${userId} from MongoDB`);
+        console.log(`Querying collection 'users' with filter:`, { uid: userId });
         let userDoc = await dbUsers.findOne({ uid: userId });
+        console.log(`User document found:`, userDoc);
         if (!userDoc) {
             const newUserDoc = {
                 uid: userId,
@@ -108,12 +117,12 @@ wss.on("connection", async (socket, req) => {
             characters: userCharacters
         };
         // 2. Save to Redis with a 1-hour TTL (3600 seconds)
-        await redisClient.setSession(userId, userData, 180);
+        await redisClient.setSession(userId, userData, TTL);
     }
     try {
         socket.on("message", async (data) => {
             // Refresh Redis TTL on active use (keep alive for 1 hour)
-            await redisClient.expireSession(userId, 3600);
+            await redisClient.expireSession(userId, TTL);
             const message = data.toString();
             let parsedMessage;
             try {
@@ -159,7 +168,7 @@ wss.on("connection", async (socket, req) => {
                         }));
                         console.log(`Sent ${cachedMessages.length} messages for conversation ${conversationId} (Loaded from Redis Cache)`);
                         // Refresh TTL
-                        await redisClient.expireSession(`conv:${conversationId}`, 3600);
+                        await redisClient.expireSession(`conv:${conversationId}`, TTL);
                         return;
                     }
                 }
@@ -173,7 +182,7 @@ wss.on("connection", async (socket, req) => {
                 });
                 // Cache the initial load
                 if (!lastMessageTimestamp) {
-                    await redisClient.setConversationCache(conversationId, messages, 3600);
+                    await redisClient.setConversationCache(conversationId, messages, TTL);
                     console.log(`Saved ${messages.length} messages for conversation ${conversationId} to Redis Cache`);
                 }
                 socket.send(JSON.stringify({
@@ -210,7 +219,7 @@ wss.on("connection", async (socket, req) => {
                 // Update local memory and Redis cache to prevent stale data
                 if (userData && Array.isArray(userData.characters)) {
                     userData.characters.push(newCharDoc);
-                    await redisClient.setSession(userId, userData, 3600);
+                    await redisClient.setSession(userId, userData, TTL);
                 }
                 socket.send(JSON.stringify({
                     type: "createCharacterResponse",
@@ -257,7 +266,7 @@ wss.on("connection", async (socket, req) => {
                     const charIndex = userData.characters.findIndex((c) => c.characterId === characterId);
                     if (charIndex !== -1) {
                         userData.characters[charIndex] = { ...userData.characters[charIndex], ...updateData };
-                        await redisClient.setSession(userId, userData, 3600);
+                        await redisClient.setSession(userId, userData, TTL);
                     }
                 }
                 socket.send(JSON.stringify({
@@ -285,7 +294,7 @@ wss.on("connection", async (socket, req) => {
                 // 3. Update local memory array and Redis cache
                 if (userData && Array.isArray(userData.characters)) {
                     userData.characters = userData.characters.filter((c) => c.characterId !== characterId);
-                    await redisClient.setSession(userId, userData, 3600);
+                    await redisClient.setSession(userId, userData, TTL);
                 }
                 socket.send(JSON.stringify({
                     type: "deleteCharacterResponse",
@@ -394,7 +403,7 @@ wss.on("connection", async (socket, req) => {
                     sender: "user"
                 };
                 await dbMessages.create(userMessageDoc);
-                await redisClient.appendMessageToCache(conversationId, userMessageDoc, 3600);
+                await redisClient.appendMessageToCache(conversationId, userMessageDoc, TTL);
                 // 3. Generate AI Reply using AIService
                 const aiReplyContent = await aiService_1.default.generateReply(conversationDoc.characterId, conversationId);
                 // 4. Save AI Message
@@ -407,7 +416,7 @@ wss.on("connection", async (socket, req) => {
                     sender: "ai"
                 };
                 await dbMessages.create(aiMessageDoc);
-                await redisClient.appendMessageToCache(conversationId, aiMessageDoc, 3600);
+                await redisClient.appendMessageToCache(conversationId, aiMessageDoc, TTL);
                 // 5. Bump Conversation Timestamp
                 await dbConversations.update({ conversationId }, { $set: { timestamp: aiMessageDoc.timestamp } });
                 // 5. Send response back
