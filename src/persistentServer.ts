@@ -196,7 +196,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
 
     } else if (parsedMessage.type == "createConversation") {
       const { characterId, conversationTitle } = parsedMessage;
-      const newConv: ConversationDocument = { conversationId: uuidv4(), characterId, conversationTitle, timestamp: Date.now() };
+      const newConv: ConversationDocument = { uid: userId, conversationId: uuidv4(), characterId, conversationTitle, timestamp: Date.now() };
       await dbConversations.create(newConv as any);
       if (userData?.conversations) { userData.conversations.push(newConv); await redisClient.setSession(userId, userData, TTL); }
       await updateSyncTimestamp(userId); // Update the timestamp version
@@ -207,12 +207,12 @@ wss.on("connection", async (socket: WebSocket, req) => {
       const conv = await dbConversations.findOne({ conversationId });
       if (!conv) return;
 
-      const userMsg: MessageDocument = { messageId: uuidv4(), conversationId, messageTitle: "User", messageContent: msgContent, timestamp: Date.now(), sender: "user" };
+      const userMsg: MessageDocument = { messageId: uuidv4(), uid: userId, conversationId, messageTitle: "User", messageContent: msgContent, timestamp: Date.now(), sender: "user" };
       await dbMessages.create(userMsg as any);
       await redisClient.appendMessageToCache(conversationId, userMsg, TTL);
 
       const reply = await aiService.generateReply(conv.characterId, conversationId);
-      const aiMsg: MessageDocument = { messageId: uuidv4(), conversationId, messageTitle: "AI", messageContent: reply, timestamp: Date.now() + 1, sender: "ai" };
+      const aiMsg: MessageDocument = { messageId: uuidv4(), uid: userId, conversationId, messageTitle: "AI", messageContent: reply, timestamp: Date.now() + 1, sender: "ai" };
       await dbMessages.create(aiMsg as any);
       await redisClient.appendMessageToCache(conversationId, aiMsg, TTL);
       await dbConversations.update({ conversationId }, { $set: { timestamp: aiMsg.timestamp } });
@@ -222,7 +222,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
       socket.send(JSON.stringify({ type: "chat", message_id: aiMsg.messageId, reply, timestamp: aiMsg.timestamp.toString() }));
     } else if (parsedMessage.type == "createMemory") {
       const { characterId, memoryTitle, memoryContent, memorySplashArts } = parsedMessage;
-      const newMemory: MemoryDocument = { memoryId: uuidv4(), characterId, memoryTitle, memoryContent, memorySplashArts, timestamp: Date.now() };
+      const newMemory: MemoryDocument = { uid: userId, memoryId: uuidv4(), characterId, memoryTitle, memoryContent, memorySplashArts, timestamp: Date.now() };
       await dbMemories.create(newMemory as any);
       if (userData?.memories) { userData.memories.push(newMemory); await redisClient.setSession(userId, userData, TTL); }
       await updateSyncTimestamp(userId); // Update the timestamp version

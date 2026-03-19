@@ -174,7 +174,7 @@ wss.on("connection", async (socket, req) => {
         }
         else if (parsedMessage.type == "createConversation") {
             const { characterId, conversationTitle } = parsedMessage;
-            const newConv = { conversationId: (0, uuid_1.v4)(), characterId, conversationTitle, timestamp: Date.now() };
+            const newConv = { uid: userId, conversationId: (0, uuid_1.v4)(), characterId, conversationTitle, timestamp: Date.now() };
             await dbConversations.create(newConv);
             if (userData?.conversations) {
                 userData.conversations.push(newConv);
@@ -188,11 +188,11 @@ wss.on("connection", async (socket, req) => {
             const conv = await dbConversations.findOne({ conversationId });
             if (!conv)
                 return;
-            const userMsg = { messageId: (0, uuid_1.v4)(), conversationId, messageTitle: "User", messageContent: msgContent, timestamp: Date.now(), sender: "user" };
+            const userMsg = { messageId: (0, uuid_1.v4)(), uid: userId, conversationId, messageTitle: "User", messageContent: msgContent, timestamp: Date.now(), sender: "user" };
             await dbMessages.create(userMsg);
             await redisClient.appendMessageToCache(conversationId, userMsg, TTL);
             const reply = await aiService_1.default.generateReply(conv.characterId, conversationId);
-            const aiMsg = { messageId: (0, uuid_1.v4)(), conversationId, messageTitle: "AI", messageContent: reply, timestamp: Date.now() + 1, sender: "ai" };
+            const aiMsg = { messageId: (0, uuid_1.v4)(), uid: userId, conversationId, messageTitle: "AI", messageContent: reply, timestamp: Date.now() + 1, sender: "ai" };
             await dbMessages.create(aiMsg);
             await redisClient.appendMessageToCache(conversationId, aiMsg, TTL);
             await dbConversations.update({ conversationId }, { $set: { timestamp: aiMsg.timestamp } });
@@ -201,7 +201,7 @@ wss.on("connection", async (socket, req) => {
         }
         else if (parsedMessage.type == "createMemory") {
             const { characterId, memoryTitle, memoryContent, memorySplashArts } = parsedMessage;
-            const newMemory = { memoryId: (0, uuid_1.v4)(), characterId, memoryTitle, memoryContent, memorySplashArts, timestamp: Date.now() };
+            const newMemory = { uid: userId, memoryId: (0, uuid_1.v4)(), characterId, memoryTitle, memoryContent, memorySplashArts, timestamp: Date.now() };
             await dbMemories.create(newMemory);
             if (userData?.memories) {
                 userData.memories.push(newMemory);

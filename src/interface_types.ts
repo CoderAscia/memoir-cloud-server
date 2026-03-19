@@ -1,11 +1,12 @@
+
 interface UserDocument {
     uid: string;
     timestampVersion: string;
 }
 
 interface CharacterDocument {
-    characterId: string;
     uid: string;
+    characterId: string;
     characterName: string;
     characterImagePath: string;
     characterMetaData: CharacterMetaData;
@@ -20,6 +21,7 @@ interface CharacterMetaData {
 }
 
 interface MemoryDocument {
+    uid: string;
     memoryId: string;
     characterId: string;
     memoryTitle: string;
@@ -29,6 +31,7 @@ interface MemoryDocument {
 }
 
 interface ConversationDocument {
+    uid: string;
     conversationId: string;
     characterId: string;
     conversationTitle: string;
@@ -37,6 +40,7 @@ interface ConversationDocument {
 
 interface MessageDocument {
     messageId: string;
+    uid: string;
     conversationId: string;
     messageTitle: string;
     messageContent: string;

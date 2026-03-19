@@ -38,10 +38,14 @@ async function runTests() {
         // 1. getLatestUserData
         console.log("1. Testing getLatestUserData...");
         let p = waitForResponse("syncResponse");
-        ws.send(JSON.stringify({ type: "getLatestUserData", lastSyncVersion: "0.0.0" }));
+        ws.send(JSON.stringify({ type: "getLatestUserData", lastSyncVersion: "1773904742408" }));
         let res = await p;
-        console.log("✅ getLatestUserData response:", `Loaded ${res.delta_updates.characters.length || 0} characters.`);
-
+        console.log("✅ getLatestUserData response:");
+        // Loop through each category dynamically
+        Object.entries(res.delta_updates).forEach(([key, value]) => {
+            console.log(`=== ${key.toUpperCase()} ===`);
+            console.table(value);
+        });
         // 2. createCharacter
         console.log("\n2. Testing createCharacter...");
         p = waitForResponse("createCharacterResponse");
