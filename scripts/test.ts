@@ -38,7 +38,7 @@ async function runTests() {
         // 1. getLatestUserData
         console.log("1. Testing getLatestUserData...");
         let p = waitForResponse("syncResponse");
-        ws.send(JSON.stringify({ type: "getLatestUserData", lastSyncVersion: "1773906256539" }));
+        ws.send(JSON.stringify({ type: "getLatestUserData", lastSyncVersion: "1773907642886" }));
         let res = await p;
         console.log("✅ getLatestUserData response:");
         // Loop through each category dynamically
