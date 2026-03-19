@@ -63,6 +63,13 @@ wss.on("connection", async (socket, req) => {
             socket.send(JSON.stringify({ type: "error", message: "Invalid JSON format" }));
             return;
         }
+        async function updateSyncTimestamp(userId) {
+            const cachedUserData = await redisClient.getSession(userId);
+            if (cachedUserData) {
+                cachedUserData.timestampVersion = Date.now().toString();
+                await redisClient.setSession(userId, cachedUserData, TTL); // Update the timestamp version in the cache
+            }
+        }
         if (parsedMessage['type'] == "getLatestUserData") {
             // Get the last sync timestamp from DB
             const currentTimeStampVersion = parsedMessage['lastSyncVersion'];
@@ -130,6 +137,7 @@ wss.on("connection", async (socket, req) => {
             const name = parsedMessage.characterName?.trim();
             if (await dbCharacters.findOne({ uid: userId, characterName: name })) {
                 socket.send(JSON.stringify({ type: "createCharacterResponse", status: "error", message: "Character exists" }));
+                await updateSyncTimestamp(userId); // Update the timestamp version
                 return;
             }
             const newChar = { characterId: (0, uuid_1.v4)(), uid: userId, characterName: name, characterImagePath: parsedMessage.characterImagePath, characterMetaData: parsedMessage.characterMetaData };
@@ -138,6 +146,7 @@ wss.on("connection", async (socket, req) => {
                 userData.characters.push(newChar);
                 await redisClient.setSession(userId, userData, TTL);
             }
+            await updateSyncTimestamp(userId); // Update the timestamp version
             socket.send(JSON.stringify({ type: "createCharacterResponse", status: "success", data: newChar }));
         }
         else if (parsedMessage.type == "updateCharacter") {
@@ -150,6 +159,7 @@ wss.on("connection", async (socket, req) => {
                     await redisClient.setSession(userId, userData, TTL);
                 }
             }
+            await updateSyncTimestamp(userId); // Update the timestamp version
             socket.send(JSON.stringify({ type: "updateCharacterResponse", status: "success", characterId }));
         }
         else if (parsedMessage.type == "deleteCharacter") {
@@ -159,6 +169,7 @@ wss.on("connection", async (socket, req) => {
                 userData.characters = userData.characters.filter((c) => c.characterId !== characterId);
                 await redisClient.setSession(userId, userData, TTL);
             }
+            await updateSyncTimestamp(userId); // Update the timestamp version
             socket.send(JSON.stringify({ type: "deleteCharacterResponse", status: "success", characterId }));
         }
         else if (parsedMessage.type == "createConversation") {
@@ -169,6 +180,7 @@ wss.on("connection", async (socket, req) => {
                 userData.conversations.push(newConv);
                 await redisClient.setSession(userId, userData, TTL);
             }
+            await updateSyncTimestamp(userId); // Update the timestamp version
             socket.send(JSON.stringify({ type: "createConversationResponse", status: "success", data: newConv }));
         }
         else if (parsedMessage.type == "chat") {
@@ -184,6 +196,7 @@ wss.on("connection", async (socket, req) => {
             await dbMessages.create(aiMsg);
             await redisClient.appendMessageToCache(conversationId, aiMsg, TTL);
             await dbConversations.update({ conversationId }, { $set: { timestamp: aiMsg.timestamp } });
+            await updateSyncTimestamp(userId); // Update the timestamp version
             socket.send(JSON.stringify({ type: "chat", message_id: aiMsg.messageId, reply, timestamp: aiMsg.timestamp.toString() }));
         }
         else if (parsedMessage.type == "createMemory") {
@@ -194,6 +207,7 @@ wss.on("connection", async (socket, req) => {
                 userData.memories.push(newMemory);
                 await redisClient.setSession(userId, userData, TTL);
             }
+            await updateSyncTimestamp(userId); // Update the timestamp version
             socket.send(JSON.stringify({ type: "createMemoryResponse", status: "success", data: newMemory }));
         }
         else if (parsedMessage.type == "updateMemory") {
@@ -206,6 +220,7 @@ wss.on("connection", async (socket, req) => {
                     await redisClient.setSession(userId, userData, TTL);
                 }
             }
+            await updateSyncTimestamp(userId); // Update the timestamp version
             socket.send(JSON.stringify({ type: "updateMemoryResponse", status: "success", memoryId }));
         }
         else if (parsedMessage.type == "deleteMemory") {
@@ -215,6 +230,7 @@ wss.on("connection", async (socket, req) => {
                 userData.memories = userData.memories.filter((m) => m.memoryId !== memoryId);
                 await redisClient.setSession(userId, userData, TTL);
             }
+            await updateSyncTimestamp(userId); // Update the timestamp version
             socket.send(JSON.stringify({ type: "deleteMemoryResponse", status: "success", memoryId }));
         }
     };
@@ -238,6 +254,10 @@ wss.on("connection", async (socket, req) => {
         console.log("Authenticated user:", userId);
         socket.on("close", async () => {
             console.log(`WebSocket closed for ${userId}`);
+            const cachedUserData = await redisClient.getSession(userId);
+            if (cachedUserData) {
+                await dbUsers.update({ uid: userId }, { $set: { timestampVersion: cachedUserData.timestampVersion } }); // Update the timestamp version in the database
+            }
             await redisClient.expireSession(userId, TTL);
         });
         // --- SESSION INITIALIZATION ---
