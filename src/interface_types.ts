@@ -6,6 +6,7 @@ interface UserDocument {
 
 interface CharacterDocument {
     uid: string;
+    lastModified: string;
     characterId: string;
     characterName: string;
     characterImagePath: string;
@@ -27,7 +28,7 @@ interface MemoryDocument {
     memoryTitle: string;
     memoryContent: string;
     memorySplashArts: string[];
-    timestamp: number;
+    lastModified: string;
 }
 
 interface ConversationDocument {
@@ -35,7 +36,7 @@ interface ConversationDocument {
     conversationId: string;
     characterId: string;
     conversationTitle: string;
-    timestamp: number;
+    lastModified: string;
 }
 
 interface MessageDocument {
@@ -44,7 +45,7 @@ interface MessageDocument {
     conversationId: string;
     messageTitle: string;
     messageContent: string;
-    timestamp: number;
+    lastModified: string;
     sender: "user" | "ai";
 }
 

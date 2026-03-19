@@ -101,10 +101,10 @@ wss.on("connection", async (socket: WebSocket, req) => {
       user_timestampVersion = cachedUserData.timestampVersion;
 
       if (currentTimeStampVersion < user_timestampVersion) {
-        var deltaCharacters = await dbCharacters.find({ uid: userId, timestampVersion: { $gt: currentTimeStampVersion } }) ?? [];
-        var deltaConversations = await dbConversations.find({ uid: userId, timestampVersion: { $gt: currentTimeStampVersion } }) ?? [];
-        var deltaMessages = await dbMessages.find({ uid: userId, timestampVersion: { $gt: currentTimeStampVersion } }) ?? [];
-        var deltaMemories = await dbMemories.find({ uid: userId, timestampVersion: { $gt: currentTimeStampVersion } }) ?? [];
+        var deltaCharacters = await dbCharacters.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
+        var deltaConversations = await dbConversations.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
+        var deltaMessages = await dbMessages.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
+        var deltaMemories = await dbMemories.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
 
         const deltaData: DeltaData = {
           characters: deltaCharacters,
@@ -171,7 +171,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
         await updateSyncTimestamp(userId); // Update the timestamp version
         return;
       }
-      const newChar: CharacterDocument = { characterId: uuidv4(), uid: userId, characterName: name, characterImagePath: parsedMessage.characterImagePath, characterMetaData: parsedMessage.characterMetaData };
+      const newChar: CharacterDocument = { characterId: uuidv4(), lastModified: Date.now().toString(), uid: userId, characterName: name, characterImagePath: parsedMessage.characterImagePath, characterMetaData: parsedMessage.characterMetaData };
       await dbCharacters.create(newChar as any);
       if (userData?.characters) { userData.characters.push(newChar); await redisClient.setSession(userId, userData, TTL); }
       await updateSyncTimestamp(userId); // Update the timestamp version
@@ -196,7 +196,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
 
     } else if (parsedMessage.type == "createConversation") {
       const { characterId, conversationTitle } = parsedMessage;
-      const newConv: ConversationDocument = { uid: userId, conversationId: uuidv4(), characterId, conversationTitle, timestamp: Date.now() };
+      const newConv: ConversationDocument = { uid: userId, conversationId: uuidv4(), characterId, conversationTitle, lastModified: Date.now().toString() };
       await dbConversations.create(newConv as any);
       if (userData?.conversations) { userData.conversations.push(newConv); await redisClient.setSession(userId, userData, TTL); }
       await updateSyncTimestamp(userId); // Update the timestamp version
@@ -207,22 +207,22 @@ wss.on("connection", async (socket: WebSocket, req) => {
       const conv = await dbConversations.findOne({ conversationId });
       if (!conv) return;
 
-      const userMsg: MessageDocument = { messageId: uuidv4(), uid: userId, conversationId, messageTitle: "User", messageContent: msgContent, timestamp: Date.now(), sender: "user" };
+      const userMsg: MessageDocument = { messageId: uuidv4(), uid: userId, conversationId, messageTitle: "User", messageContent: msgContent, lastModified: Date.now().toString(), sender: "user" };
       await dbMessages.create(userMsg as any);
       await redisClient.appendMessageToCache(conversationId, userMsg, TTL);
 
       const reply = await aiService.generateReply(conv.characterId, conversationId);
-      const aiMsg: MessageDocument = { messageId: uuidv4(), uid: userId, conversationId, messageTitle: "AI", messageContent: reply, timestamp: Date.now() + 1, sender: "ai" };
+      const aiMsg: MessageDocument = { messageId: uuidv4(), uid: userId, conversationId, messageTitle: "AI", messageContent: reply, lastModified: Date.now().toString(), sender: "ai" };
       await dbMessages.create(aiMsg as any);
       await redisClient.appendMessageToCache(conversationId, aiMsg, TTL);
-      await dbConversations.update({ conversationId }, { $set: { timestamp: aiMsg.timestamp } });
+      await dbConversations.update({ conversationId }, { $set: { lastModified: aiMsg.lastModified } });
 
       await updateSyncTimestamp(userId); // Update the timestamp version
 
-      socket.send(JSON.stringify({ type: "chat", message_id: aiMsg.messageId, reply, timestamp: aiMsg.timestamp.toString() }));
+      socket.send(JSON.stringify({ type: "chat", message_id: aiMsg.messageId, reply, lastModified: aiMsg.lastModified }));
     } else if (parsedMessage.type == "createMemory") {
       const { characterId, memoryTitle, memoryContent, memorySplashArts } = parsedMessage;
-      const newMemory: MemoryDocument = { uid: userId, memoryId: uuidv4(), characterId, memoryTitle, memoryContent, memorySplashArts, timestamp: Date.now() };
+      const newMemory: MemoryDocument = { uid: userId, memoryId: uuidv4(), characterId, memoryTitle, memoryContent, memorySplashArts, lastModified: Date.now().toString() };
       await dbMemories.create(newMemory as any);
       if (userData?.memories) { userData.memories.push(newMemory); await redisClient.setSession(userId, userData, TTL); }
       await updateSyncTimestamp(userId); // Update the timestamp version
@@ -280,7 +280,7 @@ wss.on("connection", async (socket: WebSocket, req) => {
       let userDoc = await dbUsers.findOne({ uid: userId });
       if (!userDoc) {
         const newChar: CharacterDocument = {
-          characterId: uuidv4(), uid: userId, characterName: "Yuuki", characterImagePath: "assets/images/purple_kawaii.jpg",
+          characterId: uuidv4(), lastModified: Date.now().toString(), uid: userId, characterName: "Yuuki", characterImagePath: "assets/images/purple_kawaii.jpg",
           characterMetaData: { characterStickers: [], chatBackgroundImage: "", relationship: "Friend", characterPersonality: "Helpful", characterBackstory: "Yuuki is kind." }
         };
         await Promise.all([dbUsers.create({ uid: userId, timestampVersion: Date.now() } as any), dbCharacters.create(newChar as any)]);
