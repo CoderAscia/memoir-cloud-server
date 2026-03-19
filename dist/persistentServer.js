@@ -4,8 +4,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const ws_1 = require("ws");
-const express_1 = __importDefault(require("express"));
-const path_1 = __importDefault(require("path"));
 const firebase_admin_1 = __importDefault(require("./firebase_admin"));
 const uuid_1 = require("uuid");
 const database_1 = __importDefault(require("./database"));
@@ -32,13 +30,6 @@ redisClient.flushAll().then(() => {
     console.error("Failed to clear Redis cache:", err);
 });
 const wss = new ws_1.WebSocketServer({ port: port, host: "0.0.0.0" });
-// Setup Express mapping strictly for the Admin Dashboard
-const app = (0, express_1.default)();
-const dashboardPort = 3031;
-app.use(express_1.default.static(path_1.default.join(__dirname, '../public')));
-app.listen(dashboardPort, '0.0.0.0', () => {
-    console.log(`Admin Dashboard running on http://localhost:${dashboardPort}`);
-});
 if (API_KEY == null)
     throw new Error("API Key cannot be null");
 wss.on("connection", async (socket, req) => {
@@ -73,8 +64,42 @@ wss.on("connection", async (socket, req) => {
             return;
         }
         if (parsedMessage['type'] == "getLatestUserData") {
-            socket.send(JSON.stringify({ "type": "syncResponse", "uid": userId, "data": userData }));
-            console.log("Sent latest user data");
+            // Get the last sync timestamp from DB
+            const currentTimeStampVersion = parsedMessage['lastSyncVersion'];
+            let user_timestampVersion;
+            // Check if the user data is already in the cache
+            const cachedUserData = await redisClient.getSession(userId);
+            user_timestampVersion = cachedUserData.timestampVersion;
+            if (currentTimeStampVersion < user_timestampVersion) {
+                var deltaCharacters = await dbCharacters.find({ uid: userId, timestampVersion: { $gt: user_timestampVersion } });
+                var deltaConversations = await dbConversations.find({ uid: userId, timestampVersion: { $gt: user_timestampVersion } });
+                var deltaMessages = await dbMessages.find({ uid: userId, timestampVersion: { $gt: user_timestampVersion } });
+                var deltaMemories = await dbMemories.find({ uid: userId, timestampVersion: { $gt: user_timestampVersion } });
+                const deltaData = {
+                    characters: deltaCharacters,
+                    conversations: deltaConversations,
+                    messages: deltaMessages,
+                    memories: deltaMemories
+                };
+                socket.send(JSON.stringify({ "type": "syncResponse", "isLatest": false, "uid": userId, "delta_updates": deltaData }));
+            }
+            if (currentTimeStampVersion == '0.0.0') {
+                var deltaCharacters = await dbCharacters.find({ uid: userId });
+                var deltaConversations = await dbConversations.find({ uid: userId });
+                var deltaMessages = await dbMessages.find({ uid: userId });
+                var deltaMemories = await dbMemories.find({ uid: userId });
+                const deltaData = {
+                    characters: deltaCharacters,
+                    conversations: deltaConversations,
+                    messages: deltaMessages,
+                    memories: deltaMemories
+                };
+                socket.send(JSON.stringify({ "type": "syncResponse", "isLatest": false, "uid": userId, "delta_updates": deltaData, "timestampVersion": user_timestampVersion }));
+            }
+            if (currentTimeStampVersion === user_timestampVersion) {
+                socket.send(JSON.stringify({ "type": "syncResponse", "isLatest": true, "uid": userId, "delta_updates": null, "timestampVersion": user_timestampVersion }));
+                console.log("Sent latest user data");
+            }
         }
         else if (parsedMessage.type == "getCharacterDetails") {
             const { characterId } = parsedMessage;
@@ -186,10 +211,9 @@ wss.on("connection", async (socket, req) => {
                     characterId: (0, uuid_1.v4)(), uid: userId, characterName: "Yuuki", characterImagePath: "assets/images/purple_kawaii.jpg",
                     characterMetaData: { characterStickers: [], chatBackgroundImage: "", relationship: "Friend", characterPersonality: "Helpful", characterBackstory: "Yuuki is kind." }
                 };
-                await Promise.all([dbUsers.create({ uid: userId, timestampVersion: "prototype" }), dbCharacters.create(newChar)]);
+                await Promise.all([dbUsers.create({ uid: userId, timestampVersion: Date.now() }), dbCharacters.create(newChar)]);
             }
-            const chars = await dbCharacters.find({ uid: userId });
-            userData = { timestampVersion: "prototype", characters: chars };
+            userData = { timestampVersion: Date.now() };
             await redisClient.setSession(userId, userData, TTL);
         }
         // --- COMPLETION & BUFFER PROCESSING ---
