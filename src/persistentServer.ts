@@ -317,7 +317,8 @@ wss.on("connection", async (socket: WebSocket, req) => {
         await Promise.all([dbUsers.create({ uid: userId, timestampVersion: Date.now().toString() } as any), dbCharacters.create(newChar as any)]);
       }
 
-      userData = { timestampVersion: Date.now().toString() }; // FIX #5: string, not number
+      const storedTimestampVersion = userDoc?.timestampVersion;
+      userData = { timestampVersion: storedTimestampVersion ?? Date.now().toString() }; // FIX #5: string, not number
       await redisClient.setSession(userId, userData, TTL);
     }
 
