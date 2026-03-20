@@ -25,10 +25,11 @@ const dbMemories = new DBHandler<MemoryDocument>("memories");
 const redisClient = RedisClient.getInstance();
 
 interface DeltaData {
-  characters: CharacterDocument[];
-  conversations: ConversationDocument[];
-  messages: MessageDocument[];
-  memories: MemoryDocument[];
+  deltaCharacters: CharacterDocument[];
+  deltaConversations: ConversationDocument[];
+  deltaMessages: MessageDocument[];
+  deltaMemories: MemoryDocument[];
+  deltaVersion: string;
 }
 
 // Clear Redis cache on server restart
@@ -115,32 +116,34 @@ wss.on("connection", async (socket: WebSocket, req) => {
       // satisfy the `< user_timestampVersion` condition causing a double-send.
       if (currentTimeStampVersion === '0.0.0') {
 
-        const deltaCharacters   = await dbCharacters.find({ uid: userId });
+        const deltaCharacters = await dbCharacters.find({ uid: userId });
         const deltaConversations = await dbConversations.find({ uid: userId });
-        const deltaMessages     = await dbMessages.find({ uid: userId });
-        const deltaMemories     = await dbMemories.find({ uid: userId });
+        const deltaMessages = await dbMessages.find({ uid: userId });
+        const deltaMemories = await dbMemories.find({ uid: userId });
 
         const deltaData: DeltaData = {
-          characters: deltaCharacters,
-          conversations: deltaConversations,
-          messages: deltaMessages,
-          memories: deltaMemories
+          deltaCharacters: deltaCharacters,
+          deltaConversations: deltaConversations,
+          deltaMessages: deltaMessages,
+          deltaMemories: deltaMemories,
+          deltaVersion: user_timestampVersion
         };
 
         socket.send(JSON.stringify({ "type": "syncResponse", "isLatest": false, "uid": userId, "delta_updates": deltaData, "timestampVersion": user_timestampVersion }));
 
       } else if (currentTimeStampVersion < user_timestampVersion) {
 
-        const deltaCharacters   = await dbCharacters.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
+        const deltaCharacters = await dbCharacters.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
         const deltaConversations = await dbConversations.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
-        const deltaMessages     = await dbMessages.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
-        const deltaMemories     = await dbMemories.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
+        const deltaMessages = await dbMessages.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
+        const deltaMemories = await dbMemories.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
 
         const deltaData: DeltaData = {
-          characters: deltaCharacters,
-          conversations: deltaConversations,
-          messages: deltaMessages,
-          memories: deltaMemories
+          deltaCharacters: deltaCharacters,
+          deltaConversations: deltaConversations,
+          deltaMessages: deltaMessages,
+          deltaMemories: deltaMemories,
+          deltaVersion: user_timestampVersion
         };
 
         socket.send(JSON.stringify({ "type": "syncResponse", "isLatest": false, "uid": userId, "delta_updates": deltaData }));

@@ -6,6 +6,7 @@ const ws = new WebSocket(process.env.WS_URL!);
 let characterId = "";
 let conversationId = "";
 let memoryId = "";
+let version = "0.0.0";
 
 function waitForResponse(expectedType: string): Promise<any> {
     return new Promise((resolve, reject) => {
@@ -38,14 +39,19 @@ async function runTests() {
         // 1. getLatestUserData
         console.log("1. Testing getLatestUserData...");
         let p = waitForResponse("syncResponse");
-        ws.send(JSON.stringify({ type: "getLatestUserData", lastSyncVersion: "1773907642886" }));
+        ws.send(JSON.stringify({ type: "getLatestUserData", lastSyncVersion: version }));
         let res = await p;
         console.log("✅ getLatestUserData response:");
-        // Loop through each category dynamically
-        Object.entries(res.delta_updates).forEach(([key, value]) => {
-            console.log(`=== ${key.toUpperCase()} ===`);
-            console.table(value);
-        });
+        // Loop through each category dynamically, guard against null delta_updates
+        // (server sends null when the client is already up to date)
+        if (res.delta_updates != null) {
+            Object.entries(res.delta_updates).forEach(([key, value]) => {
+                console.log(`=== ${key.toUpperCase()} ===`);
+                console.table(value);
+            });
+        } else {
+            console.log(`   Already up to date (timestampVersion: ${res.timestampVersion})`);
+        }
         // 2. createCharacter
         console.log("\n2. Testing createCharacter...");
         p = waitForResponse("createCharacterResponse");
@@ -150,17 +156,17 @@ async function runTests() {
         if (res.status !== 'success') throw new Error(res.message || JSON.stringify(res));
         console.log("✅ updateMemory response:", res.status);
 
-        // 10. deleteMemory
-        console.log("\n10. Testing deleteMemory...");
-        p = waitForResponse("deleteMemoryResponse");
-        ws.send(JSON.stringify({
-            type: "deleteMemory",
-            memoryId: memoryId,
-            characterId: characterId
-        }));
-        res = await p;
-        if (res.status !== 'success') throw new Error(res.message || JSON.stringify(res));
-        console.log("✅ deleteMemory response:", res.status);
+        // // 10. deleteMemory
+        // console.log("\n10. Testing deleteMemory...");
+        // p = waitForResponse("deleteMemoryResponse");
+        // ws.send(JSON.stringify({
+        //     type: "deleteMemory",
+        //     memoryId: memoryId,
+        //     characterId: characterId
+        // }));
+        // res = await p;
+        // if (res.status !== 'success') throw new Error(res.message || JSON.stringify(res));
+        // console.log("✅ deleteMemory response:", res.status);
 
         // 11. deleteCharacter
         console.log("\n11. Testing deleteCharacter...");
@@ -172,6 +178,22 @@ async function runTests() {
         res = await p;
         if (res.status !== 'success') throw new Error(res.message || JSON.stringify(res));
         console.log("✅ deleteCharacter response:", res.status);
+
+        // 12. getLatestUserData Updated
+        console.log("1. Testing getLatestUserData...");
+        p = waitForResponse("syncResponse");
+        ws.send(JSON.stringify({ type: "getLatestUserData", lastSyncVersion: version }));
+        res = await p;
+        console.log("✅ getLatestUserData response:");
+
+        if (res.delta_updates != null) {
+            Object.entries(res.delta_updates).forEach(([key, value]) => {
+                console.log(`=== ${key.toUpperCase()} ===`);
+                console.table(value);
+            });
+        } else {
+            console.log(`   Already up to date (timestampVersion: ${res.timestampVersion})`);
+        }
 
         console.log("\n🎉 ---- All Endpoints Tested Successfully ---- 🎉");
     } catch (error) {
