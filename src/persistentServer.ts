@@ -51,13 +51,12 @@ const TTL = 180;
 async function updateSyncTimestamp(userId: string) {
   const newVersion = Date.now().toString();
   const cachedUserData = await redisClient.getSession(userId);
-  if (cachedUserData) {
-    cachedUserData.timestampVersion = newVersion;
-    await redisClient.setSession(userId, cachedUserData, TTL);
-  } else {
-    // Cache is cold (expired/evicted) — persist directly to DB so it's not lost
-    await dbUsers.update({ uid: userId }, { $set: { timestampVersion: newVersion } });
-  }
+
+  cachedUserData.timestampVersion = newVersion;
+  await redisClient.setSession(userId, cachedUserData, TTL);
+
+  // Cache is cold (expired/evicted) — persist directly to DB so it's not lost
+  await dbUsers.update({ uid: userId }, { $set: { timestampVersion: newVersion } });
 }
 
 wss.on("connection", async (socket: WebSocket, req) => {
