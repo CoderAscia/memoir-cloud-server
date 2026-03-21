@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import dotenv from 'dotenv';
+import { v4 as uuidv4 } from 'uuid';
 dotenv.config();
 const ws = new WebSocket(process.env.WS_URL!);
 
@@ -113,6 +114,7 @@ async function runTests() {
         ws.send(JSON.stringify({
             type: "chat",
             conversationId: conversationId,
+            messageId: uuidv4(),
             message: "Hello! This is a test message. Please reply with short message."
         }));
         res = await p;

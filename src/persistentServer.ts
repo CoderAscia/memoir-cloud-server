@@ -226,28 +226,32 @@ wss.on("connection", async (socket: WebSocket, req) => {
       socket.send(JSON.stringify({ type: "createConversationResponse", status: "success", data: newConv }));
 
     } else if (parsedMessage.type == "chat") {
-      const { conversationId, message: msgContent } = parsedMessage;
-      const conv = await dbConversations.findOne({ conversationId });
+      const { conversationId, message: msgContent, messageId } = parsedMessage;
+      const conv_init = await dbConversations.findOne({ conversationId });
 
       // FIX #3: Send an error back instead of silently dropping the request
-      if (!conv) {
-        socket.send(JSON.stringify({ type: "error", message: "Conversation not found" }));
-        return;
+      if (!conv_init) {
+        console.log("Conversation not found, creating new conversation");
+        await dbConversations.create({ uid: userId, conversationId, conversationTitle: msgContent.substring(0, 50), lastModified: Date.now().toString() } as any);
       }
 
-      const userMsg: MessageDocument = { messageId: uuidv4(), uid: userId, conversationId, messageTitle: "User", messageContent: msgContent, lastModified: Date.now().toString(), sender: "user" };
+      const conv = await dbConversations.findOne({ conversationId });
+      if (!conv) throw new Error("Conversation not found");
+
+      const userMsg: MessageDocument = { messageId: messageId, uid: userId, conversationId, messageTitle: "User", messageContent: msgContent, lastModified: Date.now().toString(), sender: "user" };
       await dbMessages.create(userMsg as any);
       await redisClient.appendMessageToCache(conversationId, userMsg, TTL);
 
       const reply = await aiService.generateReply(conv.characterId, conversationId);
-      const aiMsg: MessageDocument = { messageId: uuidv4(), uid: userId, conversationId, messageTitle: "AI", messageContent: reply, lastModified: Date.now().toString(), sender: "ai" };
+      const timestamp = Date.now().toString();
+      const aiMsg: MessageDocument = { messageId: uuidv4(), uid: userId, conversationId, messageTitle: "AI", messageContent: reply, lastModified: timestamp, sender: "ai" };
       await dbMessages.create(aiMsg as any);
       await redisClient.appendMessageToCache(conversationId, aiMsg, TTL);
-      await dbConversations.update({ conversationId }, { $set: { lastModified: aiMsg.lastModified } });
+      await dbConversations.update({ conversationId }, { $set: { lastModified: timestamp } });
 
       await updateSyncTimestamp(userId);
 
-      socket.send(JSON.stringify({ type: "chat", message_id: aiMsg.messageId, reply, lastModified: aiMsg.lastModified }));
+      socket.send(JSON.stringify({ type: "chat", message_id: aiMsg.messageId, reply, lastModified: timestamp }));
 
     } else if (parsedMessage.type == "createMemory") {
       const { characterId, memoryTitle, memoryContent, memorySplashArts } = parsedMessage;
