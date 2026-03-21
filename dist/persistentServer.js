@@ -39,14 +39,10 @@ const TTL = 180;
 async function updateSyncTimestamp(userId) {
     const newVersion = Date.now().toString();
     const cachedUserData = await redisClient.getSession(userId);
-    if (cachedUserData) {
-        cachedUserData.timestampVersion = newVersion;
-        await redisClient.setSession(userId, cachedUserData, TTL);
-    }
-    else {
-        // Cache is cold (expired/evicted) — persist directly to DB so it's not lost
-        await dbUsers.update({ uid: userId }, { $set: { timestampVersion: newVersion } });
-    }
+    cachedUserData.timestampVersion = newVersion;
+    await redisClient.setSession(userId, cachedUserData, TTL);
+    // Cache is cold (expired/evicted) — persist directly to DB so it's not lost
+    await dbUsers.update({ uid: userId }, { $set: { timestampVersion: newVersion } });
 }
 wss.on("connection", async (socket, req) => {
     const fullUrl = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
@@ -101,10 +97,11 @@ wss.on("connection", async (socket, req) => {
                 const deltaMessages = await dbMessages.find({ uid: userId });
                 const deltaMemories = await dbMemories.find({ uid: userId });
                 const deltaData = {
-                    characters: deltaCharacters,
-                    conversations: deltaConversations,
-                    messages: deltaMessages,
-                    memories: deltaMemories
+                    deltaCharacters: deltaCharacters,
+                    deltaConversations: deltaConversations,
+                    deltaMessages: deltaMessages,
+                    deltaMemories: deltaMemories,
+                    deltaVersion: user_timestampVersion
                 };
                 socket.send(JSON.stringify({ "type": "syncResponse", "isLatest": false, "uid": userId, "delta_updates": deltaData, "timestampVersion": user_timestampVersion }));
             }
@@ -114,10 +111,11 @@ wss.on("connection", async (socket, req) => {
                 const deltaMessages = await dbMessages.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
                 const deltaMemories = await dbMemories.find({ uid: userId, lastModified: { $gt: currentTimeStampVersion } }) ?? [];
                 const deltaData = {
-                    characters: deltaCharacters,
-                    conversations: deltaConversations,
-                    messages: deltaMessages,
-                    memories: deltaMemories
+                    deltaCharacters: deltaCharacters,
+                    deltaConversations: deltaConversations,
+                    deltaMessages: deltaMessages,
+                    deltaMemories: deltaMemories,
+                    deltaVersion: user_timestampVersion
                 };
                 socket.send(JSON.stringify({ "type": "syncResponse", "isLatest": false, "uid": userId, "delta_updates": deltaData }));
             }
@@ -209,23 +207,27 @@ wss.on("connection", async (socket, req) => {
             socket.send(JSON.stringify({ type: "createConversationResponse", status: "success", data: newConv }));
         }
         else if (parsedMessage.type == "chat") {
-            const { conversationId, message: msgContent } = parsedMessage;
-            const conv = await dbConversations.findOne({ conversationId });
+            const { conversationId, message: msgContent, messageId } = parsedMessage;
+            const conv_init = await dbConversations.findOne({ conversationId });
             // FIX #3: Send an error back instead of silently dropping the request
-            if (!conv) {
-                socket.send(JSON.stringify({ type: "error", message: "Conversation not found" }));
-                return;
+            if (!conv_init) {
+                console.log("Conversation not found, creating new conversation");
+                await dbConversations.create({ uid: userId, conversationId, conversationTitle: msgContent.substring(0, 50), lastModified: Date.now().toString() });
             }
-            const userMsg = { messageId: (0, uuid_1.v4)(), uid: userId, conversationId, messageTitle: "User", messageContent: msgContent, lastModified: Date.now().toString(), sender: "user" };
+            const conv = await dbConversations.findOne({ conversationId });
+            if (!conv)
+                throw new Error("Conversation not found");
+            const userMsg = { messageId: messageId, uid: userId, conversationId, messageTitle: "User", messageContent: msgContent, lastModified: Date.now().toString(), sender: "user" };
             await dbMessages.create(userMsg);
             await redisClient.appendMessageToCache(conversationId, userMsg, TTL);
             const reply = await aiService_1.default.generateReply(conv.characterId, conversationId);
-            const aiMsg = { messageId: (0, uuid_1.v4)(), uid: userId, conversationId, messageTitle: "AI", messageContent: reply, lastModified: Date.now().toString(), sender: "ai" };
+            const timestamp = Date.now().toString();
+            const aiMsg = { messageId: (0, uuid_1.v4)(), uid: userId, conversationId, messageTitle: "AI", messageContent: reply, lastModified: timestamp, sender: "ai" };
             await dbMessages.create(aiMsg);
             await redisClient.appendMessageToCache(conversationId, aiMsg, TTL);
-            await dbConversations.update({ conversationId }, { $set: { lastModified: aiMsg.lastModified } });
+            await dbConversations.update({ conversationId }, { $set: { lastModified: timestamp } });
             await updateSyncTimestamp(userId);
-            socket.send(JSON.stringify({ type: "chat", message_id: aiMsg.messageId, reply, lastModified: aiMsg.lastModified }));
+            socket.send(JSON.stringify({ type: "chat", message_id: aiMsg.messageId, reply, lastModified: timestamp }));
         }
         else if (parsedMessage.type == "createMemory") {
             const { characterId, memoryTitle, memoryContent, memorySplashArts } = parsedMessage;
@@ -303,7 +305,8 @@ wss.on("connection", async (socket, req) => {
                 // FIX #5: Store timestampVersion as a string everywhere for consistent comparisons
                 await Promise.all([dbUsers.create({ uid: userId, timestampVersion: Date.now().toString() }), dbCharacters.create(newChar)]);
             }
-            userData = { timestampVersion: Date.now().toString() }; // FIX #5: string, not number
+            const storedTimestampVersion = userDoc?.timestampVersion;
+            userData = { timestampVersion: storedTimestampVersion ?? Date.now().toString() }; // FIX #5: string, not number
             await redisClient.setSession(userId, userData, TTL);
         }
         // --- COMPLETION & BUFFER PROCESSING ---
