@@ -80,8 +80,7 @@ jobs:
             NODE_ENV=production
             REDIS_CLOUD_USERNAME=default
             REDIS_CLOUD_PORT=10770
-            FIREBASE_PROJECT_ID=${{secrets.PROJECT_ID}}
-
+            
       - name: 'Show output'
         run: |-
           echo ${{ steps.deploy.outputs.url }}

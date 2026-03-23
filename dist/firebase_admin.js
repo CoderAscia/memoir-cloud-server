@@ -39,10 +39,7 @@ const secretManager_1 = require("./secretManager");
 async function initFirebase() {
     const clientEmail = await (0, secretManager_1.getSecret)("FIREBASE_CLIENT_EMAIL");
     const privateKey = (await (0, secretManager_1.getSecret)("FIREBASE_PRIVATE_KEY")).replace(/\\n/g, '\n');
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    if (!projectId) {
-        throw new Error("FIREBASE_PROJECT_ID is not defined");
-    }
+    const projectId = await (0, secretManager_1.getSecret)("PROJECT_ID");
     admin.initializeApp({
         credential: admin.credential.cert({
             projectId,
