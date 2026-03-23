@@ -72,14 +72,14 @@ async function startServer() {
         // on every message), and fixed it to also write to the DB when the Redis cache is cold
         // so the version is never silently lost.
         const TTL = 180;
-        async function updateSyncTimestamp(userId) {
+        const updateSyncTimestamp = async (userId) => {
             const newVersion = Date.now().toString();
             const cachedUserData = await redisClient.getSession(userId);
             cachedUserData.timestampVersion = newVersion;
             await redisClient.setSession(userId, cachedUserData, TTL);
             // Cache is cold (expired/evicted) — persist directly to DB so it's not lost
             await dbUsers.update({ uid: userId }, { $set: { timestampVersion: newVersion } });
-        }
+        };
         wss.on("connection", async (socket, req) => {
             const fullUrl = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
             const token = fullUrl.searchParams.get("token");
@@ -148,12 +148,12 @@ async function startServer() {
                     await redisClient.expireSession(userId, TTL);
                 });
                 // --- SESSION INITIALIZATION ---
-                let cachedSession = await redisClient.getSession(userId);
+                const cachedSession = await redisClient.getSession(userId);
                 if (cachedSession) {
                     userData = cachedSession;
                 }
                 else {
-                    let userDoc = await dbUsers.findOne({ uid: userId });
+                    const userDoc = await dbUsers.findOne({ uid: userId });
                     if (!userDoc) {
                         const newChar = {
                             characterId: (0, uuid_1.v4)(), lastModified: Date.now().toString(), uid: userId, characterName: "Yuuki", characterImagePath: "assets/images/purple_kawaii.jpg",

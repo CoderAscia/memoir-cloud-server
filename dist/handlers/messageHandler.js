@@ -6,7 +6,7 @@ async function handleMessage(context, parsedMessage) {
     const { socket, userId, db, redisClient, ai, updateSyncTimestamp, TTL } = context;
     if (parsedMessage.type === "getMessages") {
         const { conversationId, lastMessageTimestamp, limit = 20 } = parsedMessage;
-        let filter = { conversationId };
+        const filter = { conversationId };
         if (!lastMessageTimestamp) {
             const cachedMessages = await redisClient.getConversationCache(conversationId);
             if (cachedMessages) {
