@@ -5,8 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const openai_1 = __importDefault(require("openai"));
 const dbHandler_1 = __importDefault(require("./dbHandler"));
-const redisClient_1 = __importDefault(require("./redisClient"));
-const redisClient = redisClient_1.default.getInstance();
+const redisCloudClient_1 = __importDefault(require("./redisCloudClient"));
+const redisClient = redisCloudClient_1.default.getInstance();
 class AIService {
     constructor() {
         const apiKey = process.env.OPENAI_API_KEY;

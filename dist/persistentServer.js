@@ -8,7 +8,7 @@ const firebase_admin_1 = __importDefault(require("./firebase_admin"));
 const uuid_1 = require("uuid");
 const database_1 = __importDefault(require("./database"));
 const dbHandler_1 = __importDefault(require("./dbHandler"));
-const redisClient_1 = __importDefault(require("./redisClient"));
+const redisCloudClient_1 = __importDefault(require("./redisCloudClient"));
 const aiService_1 = __importDefault(require("./aiService"));
 const port = 3030;
 const API_KEY = process.env.OPENAI_API_KEY ?? null;
@@ -22,7 +22,7 @@ const dbCharacters = new dbHandler_1.default("characters");
 const dbConversations = new dbHandler_1.default("conversations");
 const dbMessages = new dbHandler_1.default("messages");
 const dbMemories = new dbHandler_1.default("memories");
-const redisClient = redisClient_1.default.getInstance();
+const redisClient = redisCloudClient_1.default.getInstance();
 // Clear Redis cache on server restart
 redisClient.flushAll().then(() => {
     console.log("Redis cache cleared on startup.");
