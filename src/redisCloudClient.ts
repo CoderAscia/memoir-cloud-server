@@ -6,7 +6,7 @@ class RedisCloudClient {
     private client: RedisClientType;
 
     private constructor(host: string, password: string) {
-        const username = process.env.REDIS_CLOUD_USERNAME || 'default';
+        const username = 'default';
         const port = parseInt(process.env.REDIS_CLOUD_PORT || '10770', 10);
 
         this.client = createClient({

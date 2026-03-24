@@ -22,7 +22,7 @@ class AIService {
     }
 
     public async init() {
-        const apiKey = process.env.OPENAI_APIKEY || await getSecret("OPENAI_APIKEY");
+        const apiKey = process.env.OPENAI_APIKEY ?? await getSecret("OPENAI_APIKEY");
         this.openai = new OpenAI({ apiKey });
         this.redisClient = await RedisCloudClient.getInstance();
         console.log("AI Service initialized");
