@@ -41,7 +41,7 @@ env:
   SERVICE: '${{secrets.SERVICE}}'
 
 jobs:
-  deploy:
+  deploy-to-cloud-run:
     if: github.ref == 'refs/heads/main'
     runs-on: 'ubuntu-latest'
 
@@ -100,12 +100,14 @@ jobs:
 
       - name: Build the Docker image
         run: |
-          docker build . --file Dockerfile --tag jlb027/memoir-cloud-live-server:latest --tag jlb027/memoir-cloud-live-server:${{ github.sha }}
+          docker build . --file Dockerfile --tag jlb027/memoir-cloud-live-server:latest --tag jlb027/memoir-cloud-live-server:${{ github.sha }} --tag jlb027/memoir-cloud-serverless:latest --tag jlb027/memoir-cloud-serverless:${{ github.sha }}
 
       - name: Push the Docker image
         run: |
           docker push jlb027/memoir-cloud-live-server:latest
           docker push jlb027/memoir-cloud-live-server:${{ github.sha }}
+          docker push jlb027/memoir-cloud-serverless:latest
+          docker push jlb027/memoir-cloud-serverless:${{ github.sha }}
   
   deploy-self-hosted: # Deploy the Docker image to the self-hosted runner for testing
     if: github.ref == 'refs/heads/staging'
