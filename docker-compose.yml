@@ -20,7 +20,7 @@ services:
     restart: always
 
   memoir-cloud-serverless:
-    image: jlb027/memoir-cloud-serverless:${IMAGE_TAG}
+    image: jlb027/memoir-cloud-serverless:latest
     container_name: memoir-cloud-serverless
     build: ./serverless
     ports:
