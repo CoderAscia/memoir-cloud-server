@@ -120,6 +120,7 @@ jobs:
       - name: Deploy Containers
         shell: cmd
         env:
+          NODE_ENV: staging
           IMAGE_TAG: ${{ github.sha }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PROJECT_ID: ${{ secrets.PROJECT_ID }}
