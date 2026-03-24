@@ -30,7 +30,7 @@ async function startServer() {
     const dbMessages = new DBHandler<MessageDocument>("messages");
     const dbMemories = new DBHandler<MemoryDocument>("memories");
 
-    const port = parseInt(process.env.PORT || "8080", 10);
+    const port = process.env.NODE_ENV == "production" ? 8080 : 3000;
 
 
 
@@ -80,33 +80,33 @@ async function startServer() {
       };
       socket.on("message", earlyMessageHandler);
 
-    const context: Context = {
-      socket,
-      userId,
-      redisClient,
-      db: { users: dbUsers, characters: dbCharacters, conversations: dbConversations, messages: dbMessages, memories: dbMemories },
-      ai: aiService,
-      updateSyncTimestamp,
-      TTL
-    };
+      const context: Context = {
+        socket,
+        userId,
+        redisClient,
+        db: { users: dbUsers, characters: dbCharacters, conversations: dbConversations, messages: dbMessages, memories: dbMemories },
+        ai: aiService,
+        updateSyncTimestamp,
+        TTL
+      };
 
-    // Core message processing logic
-    const processMessage = async (data: WebSocket.RawData) => {
-      await redisClient.expireSession(userId, TTL);
-      const message = data.toString();
-      console.log(`Processing message from user ${userId}: ${message.substring(0, 50)}...`);
+      // Core message processing logic
+      const processMessage = async (data: WebSocket.RawData) => {
+        await redisClient.expireSession(userId, TTL);
+        const message = data.toString();
+        console.log(`Processing message from user ${userId}: ${message.substring(0, 50)}...`);
 
-      let parsedMessage;
-      try {
-        parsedMessage = JSON.parse(message);
-      } catch (err) {
-        console.error("Failed to parse message:", err);
-        socket.send(JSON.stringify({ type: "error", message: "Invalid JSON format" }));
-        return;
-      }
+        let parsedMessage;
+        try {
+          parsedMessage = JSON.parse(message);
+        } catch (err) {
+          console.error("Failed to parse message:", err);
+          socket.send(JSON.stringify({ type: "error", message: "Invalid JSON format" }));
+          return;
+        }
 
-      await routeMessage(context, parsedMessage, userData);
-    };
+        await routeMessage(context, parsedMessage, userData);
+      };
 
       try {
         // --- AUTHENTICATION ---
