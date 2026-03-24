@@ -14,7 +14,7 @@ class FirebaseAdmin {
       const privateKey = process.env.FIREBASE_PRIVATE_KEY ?? (await getSecret("FIREBASE_PRIVATE_KEY"))!.replace(/\\n/g, '\n');
       const projectId = process.env.PROJECT_ID ?? await getSecret("PROJECT_ID");
 
-      console.log(clientEmail, privateKey, projectId);
+      console.log("projectId: ", projectId);
 
       admin.initializeApp({
         credential: admin.credential.cert({
