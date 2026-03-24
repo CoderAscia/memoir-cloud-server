@@ -80,21 +80,23 @@ async function startServer() {
       };
       socket.on("message", earlyMessageHandler);
 
-      const context: Context = {
-        socket,
-        userId,
-        redisClient,
-        db: { users: dbUsers, characters: dbCharacters, conversations: dbConversations, messages: dbMessages, memories: dbMemories },
-        ai: aiService,
-        updateSyncTimestamp,
-        TTL
-      };
 
       // Core message processing logic
-      const processMessage = async (data: WebSocket.RawData) => {
-        await redisClient.expireSession(userId, TTL);
+      const processMessage = async (data: WebSocket.RawData, currentUserData: any) => {
+
+        const context: Context = {
+          socket,
+          userId: currentUserData.uid,
+          redisClient,
+          db: { users: dbUsers, characters: dbCharacters, conversations: dbConversations, messages: dbMessages, memories: dbMemories },
+          ai: aiService,
+          updateSyncTimestamp,
+          TTL
+        };
+
+        await redisClient.expireSession(currentUserData.uid, TTL);
         const message = data.toString();
-        console.log(`Processing message from user ${userId}: ${message.substring(0, 50)}...`);
+        console.log(`Processing message from user ${currentUserData.uid}: ${message.substring(0, 50)}...`);
 
         let parsedMessage;
         try {
@@ -105,7 +107,7 @@ async function startServer() {
           return;
         }
 
-        await routeMessage(context, parsedMessage, userData);
+        await routeMessage(context, parsedMessage, currentUserData);
       };
 
       try {
@@ -152,6 +154,7 @@ async function startServer() {
 
           const storedTimestampVersion = userDoc?.timestampVersion;
           userData = { timestampVersion: storedTimestampVersion ?? Date.now().toString() }; // FIX #5: string, not number
+          console.log("Caching user data:", userData);
           await redisClient.setSession(userId, userData, TTL);
         }
 
@@ -160,7 +163,7 @@ async function startServer() {
         socket.off("message", earlyMessageHandler);
         socket.on("message", processMessage);
         console.log(`Processing ${messageBuffer.length} buffered messages...`);
-        for (const msg of messageBuffer) await processMessage(msg);
+        for (const msg of messageBuffer) await processMessage(msg, userData);
 
       } catch (err: any) {
         console.error("Connection initialization error:", err);
