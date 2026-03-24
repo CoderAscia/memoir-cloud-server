@@ -14,8 +14,13 @@ class Database {
 
     public static async getInstance(): Promise<Database> {
         if (!Database.instance) {
-            const uri = process.env.MONGODB_URI || await getSecret('MONGODB_URI');
-            Database.instance = new Database(uri!);
+            const uri = process.env.MONGODB_URI ?? await getSecret('MONGODB_URI');
+
+            if (!uri) {
+                throw new Error("MongoDB URI is not defined");
+            }
+
+            Database.instance = new Database(uri);
             await Database.instance.connect();
         }
         return Database.instance;
