@@ -31,9 +31,9 @@ name: 'Deploy to Cloud Run from Source'
 
 on:
   push:
-    branches: [ "**" ]
+    branches: [ "main","staging" ]
   pull_request:
-    branches: [ "main"]
+    branches: [ "main","staging"]
 
 env:
   PROJECT_ID: '${{secrets.PROJECT_ID}}'
@@ -108,7 +108,7 @@ jobs:
           docker push jlb027/memoir-cloud-live-server:${{ github.sha }}
   
   deploy-self-hosted: # Deploy the Docker image to the self-hosted runner for testing
-    if: github.ref == 'refs/heads/**'
+    if: github.ref == 'refs/heads/staging'
     runs-on: self-hosted
     needs: build-docker-image
     steps:  
