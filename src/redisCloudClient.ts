@@ -53,8 +53,12 @@ class RedisCloudClient {
      * Stores session data in Redis with an optional TTL.
      */
     private async setSession(key: string, data: any, ttlSeconds: number = 3600): Promise<void> {
+        if (data === undefined) {
+            console.error("❌ setSession: data is undefined, skipping Redis set");
+            return;
+        }
         await this.connect();
-        await this.client.set(String(key), JSON.stringify(data), { EX: ttlSeconds });
+        await this.client.set(key, JSON.stringify(data), { EX: ttlSeconds });
     }
 
     /**
@@ -62,7 +66,7 @@ class RedisCloudClient {
      */
     public async getSession(key: string): Promise<any | null> {
         await this.connect();
-        const data = await this.client.get(String(key));
+        const data = await this.client.get(key);
         return data ? JSON.parse(data) : null;
     }
 
