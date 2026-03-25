@@ -41,8 +41,12 @@ async function startServer() {
 
         const updateSyncTimestamp = async (userId: string) => {
             const newVersion = Date.now().toString();
-            const cachedUserData = await redisClient.getSession(userId);
-
+            let cachedUserData = await redisClient.getSession(userId);
+            if (!cachedUserData) {
+                const userDoc = await dbUsers.findOne({ userId });
+                if (!userDoc) return;
+                cachedUserData = userDoc;
+            };
             //Update user cache timestamp
             cachedUserData.lastSync = newVersion;
             await redisClient.setSession(userId, cachedUserData, TTL);
