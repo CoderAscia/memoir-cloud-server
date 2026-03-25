@@ -1,6 +1,6 @@
 
 interface UserDocument {
-    uid: string;
+    userId: string;
     lastSync: string;
     list_conversation: string[];
     list_characters: string[]

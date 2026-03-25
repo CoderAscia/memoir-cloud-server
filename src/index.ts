@@ -54,7 +54,7 @@ async function startServer() {
         wss.on("connection", async (socket: WebSocket, req) => {
             const fullUrl = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
             const token = fullUrl.searchParams.get("token");
-            let userData: UserDocument = { uid: "", lastSync: "", list_conversation: [], list_characters: [] };
+            let userData: UserDocument = { userId: "", lastSync: "", list_conversation: [], list_characters: [] };
 
             console.log(`WebSocket: Connection request for ${fullUrl.pathname}${fullUrl.search ? ' with token' : ' without token'}`);
 
@@ -75,7 +75,7 @@ async function startServer() {
 
                 const context: Context = {
                     socket,
-                    userId: currentUserData.uid,
+                    userId: currentUserData.userId,
                     redisClient,
                     db: { users: dbUsers, conversations: dbConversations, memories: dbMemories, messages: dbMessages, characters: dbCharacters },
                     ai: aiService,
@@ -83,9 +83,9 @@ async function startServer() {
                     TTL
                 };
 
-                await redisClient.expireSession(currentUserData.uid, TTL);
+                await redisClient.expireSession(currentUserData.userId, TTL);
                 const message = data.toString();
-                console.log(`Processing message from user ${currentUserData.uid}: ${message.substring(0, 50)}...`);
+                console.log(`Processing message from user ${currentUserData.userId}: ${message.substring(0, 50)}...`);
 
                 let parsedMessage;
                 try {
@@ -103,11 +103,11 @@ async function startServer() {
                 // --- AUTHENTICATION ---
                 if (token === "test_token") {
                     console.log("⚠️ WARNING: Test Backdoor Accessed ⚠️");
-                    userData.uid = "test_user_id";
+                    userData.userId = "test_user_id";
                 } else {
                     try {
                         const decodedToken = await admin.auth().verifyIdToken(token ?? "");
-                        userData.uid = decodedToken.uid;
+                        userData.userId = decodedToken.uid;
                     } catch (err: any) {
                         console.error("Invalid Firebase token:", err.message);
                         socket.close();
@@ -115,31 +115,31 @@ async function startServer() {
                     }
                 }
 
-                console.log("Authenticated user:", userData.uid);
+                console.log("Authenticated user:", userData.userId);
 
                 socket.on("close", async () => {
-                    console.log(`WebSocket closed for ${userData.uid}`);
-                    const cachedUserData = await redisClient.getSession(userData.uid);
+                    console.log(`WebSocket closed for ${userData.userId}`);
+                    const cachedUserData = await redisClient.getSession(userData.userId);
                     if (cachedUserData) {
-                        await dbUsers.update({ uid: userData.uid }, { $set: { timestampVersion: cachedUserData.timestampVersion } });
+                        await dbUsers.update({ userId: userData.userId }, { $set: { lastSync: cachedUserData.lastSync } });
                     }
-                    await redisClient.expireSession(userData.uid, TTL); // Set timer to clear cache
+                    await redisClient.expireSession(userData.userId, TTL); // Set timer to clear cache
                 });
 
                 // --- SESSION INITIALIZATION ---
-                const cachedSession = await redisClient.getSession(userData.uid);
+                const cachedSession = await redisClient.getSession(userData.userId);
                 if (cachedSession) {
                     userData = cachedSession;
                 } else {
-                    const userDoc = await dbUsers.findOne({ uid: userData.uid });
+                    const userDoc = await dbUsers.findOne({ userId: userData.userId });
                     if (!userDoc) {
                         const newChar: CharacterDocument = {
-                            characterId: uuidv4(), lastModified: Date.now().toString(), uid: userData.uid, characterName: "Yuuki", characterImagePath: "assets/images/purple_kawaii.jpg",
+                            characterId: uuidv4(), lastModified: Date.now().toString(), uid: userData.userId, characterName: "Yuuki", characterImagePath: "assets/images/purple_kawaii.jpg",
                             characterMetaData: { characterStickers: [], chatBackgroundImage: "", relationship: "Friend", characterPersonality: "Helpful", characterBackstory: "Yuuki is kind." }
                         };
 
                         userData = {
-                            uid: userData.uid,
+                            userId: userData.userId,
                             lastSync: Date.now().toString(),
                             list_characters: [newChar.characterId],
                             list_conversation: []
@@ -154,7 +154,7 @@ async function startServer() {
                     }
 
                     console.log("Caching user data:", userData);
-                    await redisClient.setSession(userData.uid, userData, TTL);
+                    await redisClient.setSession(userData.userId, userData, TTL);
                 }
 
                 // --- COMPLETION & BUFFER PROCESSING ---
