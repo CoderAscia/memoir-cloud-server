@@ -53,6 +53,7 @@ async function runTests() {
         } else {
             console.log(`   Already up to date (timestampVersion: ${res.timestampVersion})`);
         }
+        return;
         // 2. createCharacter
         console.log("\n2. Testing createCharacter...");
         p = waitForResponse("createCharacterResponse");

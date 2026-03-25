@@ -1,8 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Context } from "../types";
-import { CharacterDocument } from "../interface_types";
+import { CharacterDocument, UserDocument } from "../interface_types";
 
-export async function handleCharacter(context: Context, parsedMessage: any, userData: any) {
+export async function handleCharacter(context: Context, parsedMessage: any, userData: UserDocument) {
   const { socket, userId, db, redisClient, updateSyncTimestamp, TTL } = context;
 
   if (parsedMessage.type === "getCharacterDetails") {
@@ -35,8 +35,8 @@ export async function handleCharacter(context: Context, parsedMessage: any, user
     };
 
     await db.characters.create(newChar as any);
-    if (userData?.characters) {
-      userData.characters.push(newChar);
+    if (userData?.list_characters) {
+      userData.list_characters.push(newChar.characterId);
       await redisClient.setSession(userId, userData, TTL);
     }
     await updateSyncTimestamp(userId);
@@ -45,10 +45,10 @@ export async function handleCharacter(context: Context, parsedMessage: any, user
   } else if (parsedMessage.type === "updateCharacter") {
     const { characterId, ...updateData } = parsedMessage;
     await db.characters.update({ characterId, uid: userId }, { $set: updateData });
-    if (userData?.characters) {
-      const idx = userData.characters.findIndex((c: any) => c.characterId === characterId);
+    if (userData?.list_characters) {
+      const idx = userData.list_characters.findIndex((c: any) => c.characterId === characterId);
       if (idx !== -1) {
-        userData.characters[idx] = { ...userData.characters[idx], ...updateData };
+        userData.list_characters[idx] = characterId;
         await redisClient.setSession(userId, userData, TTL);
       }
     }
@@ -58,8 +58,8 @@ export async function handleCharacter(context: Context, parsedMessage: any, user
   } else if (parsedMessage.type === "deleteCharacter") {
     const { characterId } = parsedMessage;
     await db.characters.delete({ characterId, uid: userId });
-    if (userData?.characters) {
-      userData.characters = userData.characters.filter((c: any) => c.characterId !== characterId);
+    if (userData?.list_characters) {
+      userData.list_characters = userData.list_characters.filter((c: any) => c.characterId !== characterId);
       await redisClient.setSession(userId, userData, TTL);
     }
     await updateSyncTimestamp(userId);

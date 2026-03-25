@@ -3,8 +3,9 @@ import { handleSync } from "./syncHandler";
 import { handleCharacter } from "./characterHandler";
 import { handleMessage } from "./messageHandler";
 import { handleMemory } from "./memoryHandler";
+import { UserDocument } from "../interface_types";
 
-export async function routeMessage(context: Context, parsedMessage: any, userData: any) {
+export async function routeMessage(context: Context, parsedMessage: any, userData: UserDocument) {
   const { type } = parsedMessage;
 
   if (type === "getLatestUserData") {

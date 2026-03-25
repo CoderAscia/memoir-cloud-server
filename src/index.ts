@@ -37,7 +37,7 @@ async function startServer() {
 
         const wss = new WebSocketServer({ port: port, host: "0.0.0.0" });
 
-        const TTL = 180;
+        const TTL = 500;
 
         const updateSyncTimestamp = async (userId: string) => {
             const newVersion = Date.now().toString();
@@ -48,7 +48,7 @@ async function startServer() {
             await redisClient.setSession(userId, cachedUserData, TTL);
 
             // Cache is cold (expired/evicted) — persist directly to DB so it's not lost
-            await dbUsers.update({ uid: userId }, { $set: { lastSync: newVersion } });
+            await dbUsers.update({ userId }, { $set: { lastSync: newVersion } });
         };
 
         wss.on("connection", async (socket: WebSocket, req) => {
@@ -56,12 +56,13 @@ async function startServer() {
             const token = fullUrl.searchParams.get("token");
             let userData: UserDocument = { userId: "", lastSync: "", list_conversation: [], list_characters: [] };
 
-            console.log(`WebSocket: Connection request for ${fullUrl.pathname}${fullUrl.search ? ' with token' : ' without token'}`);
+            socket.on('open', () => {
+                console.log(`WebSocket: Connection request for ${fullUrl.pathname}${fullUrl.search ? ' with token' : ' without token'}`);
+            })
 
             // --- EARLY MESSAGE HANDLER (BUFFERING) ---
             let isInitialized = false;
             const messageBuffer: WebSocket.RawData[] = [];
-
             const earlyMessageHandler = (data: WebSocket.RawData) => {
                 if (!isInitialized) {
                     console.log("Buffering early message...");
