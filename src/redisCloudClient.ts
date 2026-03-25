@@ -114,7 +114,15 @@ class RedisCloudClient {
     /**
      * Caches an array of messages for a specific conversation.
      */
-    public async setConversationCache(conversationId: string, messages: any[], ttlSeconds: number = 3600): Promise<void> {
+    public async setConversationCache(conversationId: string | undefined, messages: any[], ttlSeconds: number = 3600): Promise<void> {
+        if (!conversationId) {
+            console.error("❌ setConversationCache: conversationId is undefined, skipping Redis set");
+            return;
+        }
+        if (!messages) {
+            console.error(`❌ setConversationCache: messages for conv:${conversationId} is undefined, skipping Redis set`);
+            return;
+        }
         const key = `conv:${conversationId}`;
         await this.connect();
         await this.client.set(key, JSON.stringify(messages), { EX: ttlSeconds });
@@ -133,7 +141,15 @@ class RedisCloudClient {
     /**
      * Appends a message to the conversation cache.
      */
-    public async appendMessageToCache(conversationId: string, message: any, ttlSeconds: number = 3600): Promise<void> {
+    public async appendMessageToCache(conversationId: string | undefined, message: any, ttlSeconds: number = 3600): Promise<void> {
+        if (!conversationId) {
+            console.error("❌ appendMessageToCache: conversationId is undefined, skipping Redis set");
+            return;
+        }
+        if (!message) {
+            console.error(`❌ appendMessageToCache: message for conv:${conversationId} is undefined, skipping Redis set`);
+            return;
+        }
         const currentCache = await this.getConversationCache(conversationId);
         if (currentCache) {
             currentCache.unshift(message);
@@ -142,6 +158,7 @@ class RedisCloudClient {
             await this.setConversationCache(conversationId, [message], ttlSeconds);
         }
     }
+
 
     /**
      * Clears all data from the database.
