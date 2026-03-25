@@ -40,9 +40,11 @@ async function startServer() {
         const TTL = 500;
 
         const updateSyncTimestamp = async (userId: string) => {
+            return;
             const newVersion = Date.now().toString();
             let cachedUserData = await redisClient.getSession(userId);
             if (!cachedUserData) {
+                console.log(`[Update Sync Timestamp] User ${userId} not found in cache. Fetching from database.`);
                 const userDoc = await dbUsers.findOne({ userId });
                 if (!userDoc) return;
                 cachedUserData = userDoc;

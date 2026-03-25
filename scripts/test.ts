@@ -56,7 +56,7 @@ async function runTests() {
 
         const conversationId = uuidv4();
         // 5. chat, new conversation
-        console.log("\n5. Testing chat (this may take a few seconds as it hits OpenAI)...");
+        console.log("\n5. Testing new conversation chat");
         p = waitForResponse("aiChatResponse");
         ws.send(JSON.stringify({
             type: "chat",
