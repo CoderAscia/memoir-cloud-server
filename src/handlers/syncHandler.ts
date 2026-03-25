@@ -14,9 +14,9 @@ export async function handleSync(context: Context, parsedMessage: any) {
     user_timestampVersion = cachedUserData.lastSync;
   } else {
     // Cache miss (expired/evicted) — fall back to the DB value
-    const userDoc = await db.users.findOne({ uid: userId });
+    const userDoc = await db.users.findOne({ userId: userId });
 
-    if (!userDoc) {
+    if (userDoc === null) {
       console.error(`User not found: ${userId}`);
       return;
     }
