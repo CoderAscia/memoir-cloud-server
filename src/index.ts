@@ -170,7 +170,7 @@ async function startServer() {
                 if (!isInitialized) {
                     isInitialized = true;
                     socket.off("message", earlyMessageHandler);
-                    socket.on("message", processMessage);
+                    socket.on("message", (data) => processMessage(data, userData));
                     console.log(`Processing ${messageBuffer.length} buffered messages...`);
                     for (const msg of messageBuffer) await processMessage(msg, userData);
                 }

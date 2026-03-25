@@ -5,7 +5,6 @@ dotenv.config();
 const ws = new WebSocket(process.env.WS_URL!);
 
 let characterId = "1234";
-let conversationId = "";
 let memoryId = "";
 let version = "0.0.0";
 
@@ -55,8 +54,8 @@ async function runTests() {
         }
 
         const conversationId = uuidv4();
-        // 5. chat, new conversation
-        console.log("\n5. Testing new conversation chat");
+        // 2. chat, new conversation
+        console.log("\n2. Testing new conversation chat");
         p = waitForResponse("aiChatResponse");
         ws.send(JSON.stringify({
             type: "chat",
@@ -69,8 +68,8 @@ async function runTests() {
         res = await p;
         console.log("✅ new conversation chat response:", res.reply);
 
-        // 6. chat, existing conversation
-        console.log("\n6. Testing chat (this may take a few seconds as it hits OpenAI)...");
+        // 3. chat, existing conversation
+        console.log("\n3. Testing chat (this may take a few seconds as it hits OpenAI)...");
         p = waitForResponse("aiChatResponse");
         ws.send(JSON.stringify({
             type: "chat",
@@ -81,8 +80,8 @@ async function runTests() {
         res = await p;
         console.log("✅ existing conversation chat response:", res.reply);
 
-        // 7. getMessages
-        console.log("\n7. Testing getMessages...");
+        // 4. getMessages
+        console.log("\n4. Testing getMessages...");
         p = waitForResponse("messagesResponse");
         ws.send(JSON.stringify({
             type: "getMessages",
