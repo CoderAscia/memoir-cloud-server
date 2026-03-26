@@ -29,19 +29,19 @@ async function startServer() {
         const port = process.env.NODE_ENV == "production" ? 8080 : 3000;
 
         // Clear Redis cache on server restart
-        redisClient.flushAll().then(() => {
+        redisClient.flushAll().then(async () => {
             console.log("Redis cache cleared on startup.");
+
+            //Clear dbuser , dbcharacter , dbconversation , dbmemory , dbmessage on server restart
+            await dbUsers.deleteAll();
+            await dbCharacters.deleteAll();
+            await dbConversations.deleteAll();
+            await dbMemories.deleteAll();
+            await dbMessages.deleteAll();
+            console.log("Database cleared on startup.");
         }).catch(err => {
             console.error("Failed to clear Redis cache:", err);
         });
-
-        //Clear dbuser , dbcharacter , dbconversation , dbmemory , dbmessage on server restart
-        dbUsers.deleteAll();
-        dbCharacters.deleteAll();
-        dbConversations.deleteAll();
-        dbMemories.deleteAll();
-        dbMessages.deleteAll();
-        console.log("Database cleared on startup.");
 
 
         const wss = new WebSocketServer({ port: port, host: "0.0.0.0" });
