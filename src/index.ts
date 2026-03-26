@@ -35,6 +35,15 @@ async function startServer() {
             console.error("Failed to clear Redis cache:", err);
         });
 
+        //Clear dbuser , dbcharacter , dbconversation , dbmemory , dbmessage on server restart
+        dbUsers.deleteAll();
+        dbCharacters.deleteAll();
+        dbConversations.deleteAll();
+        dbMemories.deleteAll();
+        dbMessages.deleteAll();
+        console.log("Database cleared on startup.");
+
+
         const wss = new WebSocketServer({ port: port, host: "0.0.0.0" });
 
         const TTL = 500;
