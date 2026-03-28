@@ -64,12 +64,14 @@ export async function handleMessage(context: Context, parsedMessage: any) {
 
     console.log("chat message received: ", parsedMessage);
 
+    conversationTitle = conversationTitle ?? generator.getRandomResponse().title;
+
     const createConversation = async () => {
       const newConv: ConversationDocument = {
         uid: userId,
         conversationId: uuidv4(),
         characterId,
-        conversationTitle: conversationTitle ?? generator.getRandomResponse().title,
+        conversationTitle: conversationTitle,
         lastModified: Date.now().toString()
       };
       await db.conversations.create(newConv as any);
@@ -118,7 +120,7 @@ export async function handleMessage(context: Context, parsedMessage: any) {
         messageId: uuidv4(),
         uid: userId,
         conversationId,
-        messageTitle: generator.getRandomResponse().title,
+        messageTitle: "Untitled",
         messageContent: reply,
         lastModified: timestamp,
         sender: "ai"
@@ -128,7 +130,7 @@ export async function handleMessage(context: Context, parsedMessage: any) {
       await db.conversations.update({ conversationId }, { $set: { lastModified: timestamp } });
 
       await updateSyncTimestamp(userId);
-      socket.send(JSON.stringify({ type: "aiChatResponse", messageTitle: aiMsg.messageTitle, message_id: aiMsg.messageId, reply, lastModified: timestamp, conversationId }));
+      socket.send(JSON.stringify({ type: "aiChatResponse", conversationTitle: conversationTitle, message_id: aiMsg.messageId, reply, lastModified: timestamp, conversationId }));
     } finally {
       generatingConversations.delete(conversationId);
     }
