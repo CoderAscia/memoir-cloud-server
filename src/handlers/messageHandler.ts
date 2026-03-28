@@ -128,7 +128,7 @@ export async function handleMessage(context: Context, parsedMessage: any) {
       await db.conversations.update({ conversationId }, { $set: { lastModified: timestamp } });
 
       await updateSyncTimestamp(userId);
-      socket.send(JSON.stringify({ type: "aiChatResponse", message_id: aiMsg.messageId, reply, lastModified: timestamp, conversationId }));
+      socket.send(JSON.stringify({ type: "aiChatResponse", messageTitle: aiMsg.messageTitle, message_id: aiMsg.messageId, reply, lastModified: timestamp, conversationId }));
     } finally {
       generatingConversations.delete(conversationId);
     }
