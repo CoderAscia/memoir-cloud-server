@@ -31,6 +31,13 @@ async function startServer() {
         // Clear Redis cache on server restart
         redisClient.flushAll().then(async () => {
             console.log("Redis cache cleared on startup.");
+            console.log("Deleting all data from database...");
+            await dbUsers.deleteAll();
+            await dbCharacters.deleteAll();
+            await dbConversations.deleteAll();
+            await dbMemories.deleteAll();
+            await dbMessages.deleteAll();
+            console.log("Database cleared on startup.");
 
         }).catch(err => {
             console.error("Failed to clear Redis cache:", err);
@@ -192,7 +199,7 @@ async function startServer() {
 }
 
 startServer().then(() => {
-    console.log("Server listening at port 3001");
+    console.log("Server listening at port 3000");
 }).catch(err => {
     console.error("Critical error during server startup:", err);
     process.exit(1);

@@ -38,6 +38,10 @@ class DBHandler<T extends Document> {
         return await collection.deleteOne(filter);
     }
 
+    public async deleteAll(): Promise<void> {
+        const collection = await this.getCollection();
+        await collection.deleteMany({});
+    }
 }
 
 export default DBHandler;
