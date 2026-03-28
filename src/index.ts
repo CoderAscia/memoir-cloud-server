@@ -59,7 +59,6 @@ async function startServer() {
             };
             //Update user cache timestamp
             cachedUserData.lastSync = newVersion;
-            // await redisClient.safeSetSession(userId, cachedUserData, TTL);
 
             // Cache is cold (expired/evicted) — persist directly to DB so it's not lost
             await dbUsers.update({ userId }, { $set: { lastSync: newVersion } });
