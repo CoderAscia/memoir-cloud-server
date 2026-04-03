@@ -105,7 +105,7 @@ export async function handleMessage(context: Context, parsedMessage: any) {
       conversationId,
       messageTitle: "User",
       messageContent: msgContent,
-      lastModified: Date.now().toString(),
+      lastModified: new Date().toISOString(),
       sender: "user"
     };
     await db.messages.create(userMsg as any);
