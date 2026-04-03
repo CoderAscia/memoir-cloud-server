@@ -152,13 +152,13 @@ async function startServer() {
                     const userDoc = await dbUsers.findOne({ userId: userData.userId });
                     if (!userDoc) {
                         const newChar: CharacterDocument = {
-                            characterId: uuidv4(), lastModified: Date.now().toString(), uid: userData.userId, characterName: "Yuuki", characterImagePath: "assets/images/purple_kawaii.jpg",
+                            characterId: uuidv4(), lastModified: new Date().toISOString(), uid: userData.userId, characterName: "Yuuki", characterImagePath: "assets/images/purple_kawaii.jpg",
                             characterMetaData: { characterStickers: [], chatBackgroundImage: "", relationship: "Friend", characterPersonality: "Helpful", characterBackstory: "Yuuki is kind." }
                         };
 
                         userData = {
                             userId: userData.userId,
-                            lastSync: Date.now().toString(),
+                            lastSync: new Date().toISOString(),
                             list_characters: [newChar.characterId],
                             list_conversation: []
                         } as UserDocument;
