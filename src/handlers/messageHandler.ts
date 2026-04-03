@@ -115,7 +115,7 @@ export async function handleMessage(context: Context, parsedMessage: any) {
       generatingConversations.add(conversationId);
       // const reply = await ai.generateReply(characterId, conversationId);
       const reply = generator.getRandomResponse().message;
-      const timestamp = Date.now().toString();
+      const timestamp = new Date().toISOString();
       const aiMsg: MessageDocument = {
         messageId: uuidv4(),
         uid: userId,
