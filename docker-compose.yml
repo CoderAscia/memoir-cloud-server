@@ -39,7 +39,7 @@ services:
 
   memoir-cloud-grpc-server:
     image: jlb027/memoir-grpc-ai-handler:latest
-    container_name: memoir-cloud-grpc-server
+    container_name: memoir-grpc-ai-handler
     build: ./grpc-server
     ports:
       - "50051:50051"
